@@ -3,251 +3,85 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Công cụ thống kê án tòa</title>
+<title>Thống kê án tòa</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --navy: #0d1b2a;
-    --blue: #1b4f72;
-    --accent: #e8a83e;
-    --accent2: #2ecc9e;
-    --surface: #f4f6fb;
-    --card: #ffffff;
-    --border: #dde3ef;
-    --text: #1a2332;
-    --muted: #7a8ba3;
-    --danger: #e74c3c;
-    --success: #27ae60;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Be Vietnam Pro', sans-serif;
-    background: var(--surface);
-    color: var(--text);
-    min-height: 100vh;
-  }
-  header {
-    background: linear-gradient(135deg, var(--navy) 0%, var(--blue) 100%);
-    color: #fff;
-    padding: 28px 40px;
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    box-shadow: 0 4px 20px rgba(13,27,42,0.18);
-  }
-  header .icon { font-size: 2.2rem; }
-  header h1 { font-family: 'Playfair Display', serif; font-size: 1.6rem; letter-spacing: 0.3px; }
-  header p { font-size: 0.82rem; color: rgba(255,255,255,0.65); margin-top: 3px; }
-  .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
-
-  .card {
-    background: var(--card);
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    padding: 28px 32px;
-    margin-bottom: 24px;
-    box-shadow: 0 2px 12px rgba(13,27,42,0.06);
-  }
-  .card-title {
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.4px;
-    color: var(--muted);
-    margin-bottom: 18px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .card-title::before {
-    content: '';
-    display: inline-block;
-    width: 4px; height: 16px;
-    background: var(--accent);
-    border-radius: 2px;
-  }
-
-  .form-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; }
-  .form-group { display: flex; flex-direction: column; gap: 6px; }
-  .form-group label { font-size: 0.82rem; font-weight: 600; color: var(--blue); }
-  .form-group input[type="date"], .form-group select {
-    padding: 10px 14px;
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    font-size: 0.92rem;
-    font-family: inherit;
-    background: var(--surface);
-    color: var(--text);
-    transition: border-color 0.2s;
-    outline: none;
-    min-width: 160px;
-  }
-  .form-group input:focus, .form-group select:focus { border-color: var(--blue); background: #fff; }
-
-  .sheet-selector { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
-  .sheet-btn {
-    padding: 8px 16px;
-    border-radius: 20px;
-    border: 2px solid var(--border);
-    background: var(--surface);
-    font-size: 0.83rem;
-    font-family: inherit;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.18s;
-    color: var(--text);
-  }
-  .sheet-btn:hover { border-color: var(--blue); color: var(--blue); }
-  .sheet-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
-  .sheet-btn.active-accent { background: var(--accent); border-color: var(--accent); color: var(--navy); }
-  .sheet-btn.active-green { background: var(--accent2); border-color: var(--accent2); color: var(--navy); }
-
-  .type-selector { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-  .type-chip {
-    padding: 7px 14px;
-    border-radius: 20px;
-    border: 2px solid var(--border);
-    background: var(--surface);
-    font-size: 0.8rem;
-    font-family: inherit;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.18s;
-    color: var(--muted);
-  }
-  .type-chip.selected { background: var(--blue); border-color: var(--blue); color: #fff; }
-
-  .btn-run {
-    padding: 12px 32px;
-    background: linear-gradient(135deg, var(--navy), var(--blue));
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    font-size: 0.95rem;
-    font-family: inherit;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 4px 14px rgba(27,79,114,0.3);
-    letter-spacing: 0.3px;
-  }
-  .btn-run:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(27,79,114,0.4); }
-  .btn-run:disabled { opacity: 0.6; transform: none; cursor: not-allowed; }
-
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-  .stat-box {
-    background: var(--card);
-    border-radius: 14px;
-    padding: 22px 20px;
-    border: 1.5px solid var(--border);
-    text-align: center;
-    transition: all 0.2s;
-    position: relative;
-    overflow: hidden;
-  }
-  .stat-box::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 4px;
-  }
-  .stat-box.cu::before { background: var(--accent); }
-  .stat-box.moi::before { background: #3498db; }
-  .stat-box.gq::before { background: var(--success); }
-  .stat-box.ton::before { background: var(--danger); }
-  .stat-box:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(13,27,42,0.1); }
-  .stat-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 8px; }
-  .stat-value { font-family: 'Playfair Display', serif; font-size: 2.6rem; font-weight: 700; color: var(--navy); }
-  .stat-sub { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
-
-  .result-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
-  .result-table th {
-    background: var(--navy);
-    color: #fff;
-    padding: 11px 14px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 0.79rem;
-    letter-spacing: 0.3px;
-  }
-  .result-table th:first-child { border-radius: 10px 0 0 0; }
-  .result-table th:last-child { border-radius: 0 10px 0 0; }
-  .result-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
-  .result-table tr:hover td { background: var(--surface); }
-  .result-table tr:last-child td { border-bottom: none; }
-  .result-table .num { font-weight: 600; text-align: right; }
-  .result-table .sheet-tag {
-    display: inline-block;
-    padding: 2px 9px;
-    border-radius: 10px;
-    font-size: 0.72rem;
-    font-weight: 600;
-  }
-  .tag-ds { background: #eaf3ff; color: #1b4f72; }
-  .tag-hs { background: #fff5e0; color: #b7600a; }
-  .tag-hc { background: #eafff7; color: #1a7a5a; }
-
-  .status-bar {
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 18px;
-    border-radius: 10px;
-    font-size: 0.84rem;
-    font-weight: 500;
-    margin-bottom: 20px;
-  }
-  .status-bar.loading { background: #e8f4ff; color: var(--blue); }
-  .status-bar.error { background: #ffeaea; color: var(--danger); }
-  .status-bar.success { background: #eafff5; color: var(--success); }
-  .spinner {
-    width: 16px; height: 16px;
-    border: 2px solid rgba(27,79,114,0.25);
-    border-top-color: var(--blue);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .section-divider {
-    display: flex; align-items: center; gap: 12px;
-    color: var(--muted); font-size: 0.75rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.8px;
-    margin: 20px 0 16px;
-  }
-  .section-divider::before, .section-divider::after {
-    content: ''; flex: 1; height: 1px; background: var(--border);
-  }
-
-  #results { display: none; }
-  .sheet-result-section { margin-bottom: 28px; }
-  .sheet-heading {
-    font-size: 0.95rem; font-weight: 700; color: var(--blue);
-    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
-  }
-
-  @media (max-width: 640px) {
-    header { padding: 20px; }
-    .card { padding: 20px; }
-    .stat-value { font-size: 2rem; }
-  }
+:root {
+  --navy:#0d1b2a;--blue:#1b4f72;--accent:#e8a83e;--accent2:#2ecc9e;
+  --surface:#f4f6fb;--card:#ffffff;--border:#dde3ef;--text:#1a2332;
+  --muted:#7a8ba3;--danger:#e74c3c;--success:#27ae60;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Be Vietnam Pro',sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
+header{background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:24px 36px;display:flex;align-items:center;gap:16px;box-shadow:0 4px 20px rgba(13,27,42,.18)}
+header h1{font-family:'Playfair Display',serif;font-size:1.5rem}
+header p{font-size:.8rem;color:rgba(255,255,255,.6);margin-top:3px}
+.container{max-width:1100px;margin:0 auto;padding:28px 16px}
+.card{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:24px 28px;margin-bottom:20px;box-shadow:0 2px 10px rgba(13,27,42,.06)}
+.card-title{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title::before{content:'';display:inline-block;width:4px;height:15px;background:var(--accent);border-radius:2px}
+.form-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:.8rem;font-weight:600;color:var(--blue)}
+.form-group input[type=date],.form-group input[type=text]{padding:9px 13px;border:1.5px solid var(--border);border-radius:9px;font-size:.9rem;font-family:inherit;background:var(--surface);color:var(--text);outline:none;min-width:155px;transition:border-color .2s}
+.form-group input:focus{border-color:var(--blue);background:#fff}
+.hint{font-size:.73rem;color:var(--muted);margin-top:3px}
+.type-selector{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.type-chip{padding:7px 14px;border-radius:20px;border:2px solid var(--border);background:var(--surface);font-size:.79rem;font-family:inherit;font-weight:500;cursor:pointer;transition:all .18s;color:var(--muted)}
+.type-chip.selected{background:var(--blue);border-color:var(--blue);color:#fff}
+.sheet-selector{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.sheet-btn{padding:8px 16px;border-radius:20px;border:2px solid var(--border);background:var(--surface);font-size:.82rem;font-family:inherit;font-weight:500;cursor:pointer;transition:all .18s;color:var(--text)}
+.sheet-btn.active-ds{background:var(--blue);border-color:var(--blue);color:#fff}
+.sheet-btn.active-hs{background:var(--accent);border-color:var(--accent);color:var(--navy)}
+.sheet-btn.active-hc{background:var(--accent2);border-color:var(--accent2);color:var(--navy)}
+.btn-run{padding:11px 30px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;border:none;border-radius:10px;font-size:.92rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(27,79,114,.28);margin-top:20px}
+.btn-run:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(27,79,114,.38)}
+.btn-run:disabled{opacity:.55;transform:none;cursor:not-allowed}
+.status-bar{display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:9px;font-size:.83rem;font-weight:500;margin-bottom:18px}
+.status-bar.loading{background:#e8f4ff;color:var(--blue)}
+.status-bar.error{background:#ffeaea;color:var(--danger)}
+.status-bar.success{background:#eafff5;color:var(--success)}
+.spinner{width:15px;height:15px;border:2px solid rgba(27,79,114,.2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.stat-box{background:var(--card);border-radius:13px;padding:20px 18px;border:1.5px solid var(--border);text-align:center;position:relative;overflow:hidden;transition:all .2s}
+.stat-box::before{content:'';position:absolute;top:0;left:0;right:0;height:4px}
+.stat-box.cu::before{background:var(--accent)}
+.stat-box.moi::before{background:#3498db}
+.stat-box.gq::before{background:var(--success)}
+.stat-box.ton::before{background:var(--danger)}
+.stat-box:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(13,27,42,.1)}
+.stat-label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:7px}
+.stat-value{font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:700;color:var(--navy)}
+.result-table{width:100%;border-collapse:collapse;font-size:.86rem}
+.result-table th{background:var(--navy);color:#fff;padding:10px 13px;text-align:left;font-weight:600;font-size:.78rem;letter-spacing:.3px}
+.result-table th:first-child{border-radius:9px 0 0 0}
+.result-table th:last-child{border-radius:0 9px 0 0}
+.result-table td{padding:10px 13px;border-bottom:1px solid var(--border)}
+.result-table tr:hover td{background:var(--surface)}
+.result-table .num{font-weight:600;text-align:right}
+.result-table .total-row td{background:#f0f4fa;font-weight:700}
+.tag{display:inline-block;padding:2px 9px;border-radius:10px;font-size:.71rem;font-weight:600}
+.tag-ds{background:#eaf3ff;color:#1b4f72}
+.tag-hs{background:#fff5e0;color:#b7600a}
+.tag-hc{background:#eafff7;color:#1a7a5a}
+#results{display:none}
+@media(max-width:600px){header{padding:18px}.card{padding:18px}.stat-value{font-size:2rem}}
 </style>
 </head>
 <body>
-
 <header>
-  <div class="icon">⚖️</div>
+  <div style="font-size:2rem">⚖️</div>
   <div>
     <h1>Thống kê dữ liệu án tòa</h1>
-    <p>Tra cứu theo khoảng thời gian • Dân sự mở rộng • Hình sự • Xử lý hành chính</p>
+    <p>Dân sự mở rộng • Hình sự • Xử lý hành chính</p>
   </div>
 </header>
 
 <div class="container">
-
-  <!-- Config Card -->
   <div class="card">
-    <div class="card-title">Cấu hình truy vấn</div>
-    <div class="form-row" style="margin-bottom:20px;">
+    <div class="card-title">Khoảng thời gian</div>
+    <div class="form-row">
       <div class="form-group">
         <label>Từ ngày (X)</label>
         <input type="date" id="dateFrom">
@@ -258,9 +92,9 @@
       </div>
     </div>
 
-    <div class="card-title" style="margin-bottom:12px;">Chọn nhóm án (sheet DATA_DS_EXTEND)</div>
+    <div class="card-title" style="margin-top:22px;margin-bottom:10px">Nhóm án (sheet Dân sự mở rộng)</div>
     <div class="type-selector" id="dsTypeSelector">
-      <button class="type-chip selected" data-group="all">Tất cả DS mở rộng</button>
+      <button class="type-chip selected" data-group="all">Tất cả</button>
       <button class="type-chip" data-group="ds">Dân sự + Việc dân sự</button>
       <button class="type-chip" data-group="hngd">HNGĐ + Việc HNGĐ</button>
       <button class="type-chip" data-group="hc">Hành chính</button>
@@ -268,64 +102,53 @@
       <button class="type-chip" data-group="kdtm">KDTM</button>
     </div>
 
-    <div class="section-divider" style="margin:20px 0 16px;">Nguồn dữ liệu cần thống kê</div>
+    <div class="card-title" style="margin-top:22px;margin-bottom:10px">Nguồn dữ liệu</div>
     <div class="sheet-selector">
-      <button class="sheet-btn active" data-sheet="DS" onclick="toggleSheet(this)">📋 Dân sự mở rộng</button>
-      <button class="sheet-btn active active-accent" data-sheet="HS" onclick="toggleSheet(this)">⚖️ Hình sự</button>
-      <button class="sheet-btn active active-green" data-sheet="XLHC" onclick="toggleSheet(this)">📜 Xử lý hành chính</button>
+      <button class="sheet-btn active-ds" id="btnDS" onclick="toggleSheet('DS',this)">📋 Dân sự mở rộng</button>
+      <button class="sheet-btn active-hs" id="btnHS" onclick="toggleSheet('HS',this)">⚖️ Hình sự</button>
+      <button class="sheet-btn active-hc" id="btnXLHC" onclick="toggleSheet('XLHC',this)">📜 Xử lý hành chính</button>
     </div>
 
-    <div style="margin-top:24px;">
+    <div>
       <button class="btn-run" id="btnRun" onclick="runQuery()">🔍 Thống kê số liệu</button>
     </div>
   </div>
 
-  <!-- Status -->
-  <div id="statusBar" style="display:none;"></div>
+  <div id="statusBar" style="display:none"></div>
 
-  <!-- Results -->
   <div id="results">
     <div class="card">
       <div class="card-title">Tổng hợp</div>
       <div class="stats-grid" id="totalStats"></div>
     </div>
-    <div class="card" id="detailCard">
+    <div class="card">
       <div class="card-title">Chi tiết theo nguồn</div>
       <div id="detailContent"></div>
     </div>
   </div>
-
 </div>
 
 <script>
-// Google Sheets - FREE CSV export (no API key needed)
-// Sheet must be set to "Anyone with link can view"
 const SHEET_ID = '1FEQRl3QJT6ZlVzptuos9oiXg2yq0LctKHU_NqtY67hU';
 const GID = {
   DS:   '209489684',
-  HS:   '769340951',       // update if needed
-  XLHC: '1634544561'        // update if needed
+  HS:   '1649421851',
+  XLHC: '1573763758'
 };
-// CSV URL format: free, no API key required
-function csvUrl(gid) {
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+
+const PROXY = 'https://corsproxy.io/?';
+
+function csvUrl(name) {
+  return PROXY + encodeURIComponent(
+    'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=' + GID[name]
+  );
 }
 
-// DS groups filter by col I (index 8)
-const DS_GROUPS = {
-  all: null,
-  ds: v => /dân sự/i.test(v),
-  hngd: v => /hngđ|hôn nhân|hôn nhân gia đình/i.test(v),
-  hc: v => /hành chính/i.test(v),
-  ld: v => /lao động/i.test(v),
-  kdtm: v => /kdtm|kinh doanh thương mại/i.test(v),
-};
-const HGDT_RE = /hòa giải đối thoại|hgđt/i;
-
+// ---- state ----
 let selectedGroup = 'all';
-let activeSheets = { DS: true, HS: true, XLHC: true };
+const activeSheets = { DS:true, HS:true, XLHC:true };
+const sheetActiveClass = { DS:'active-ds', HS:'active-hs', XLHC:'active-hc' };
 
-// Type chip selection (single select)
 document.querySelectorAll('.type-chip').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.type-chip').forEach(b => b.classList.remove('selected'));
@@ -334,55 +157,59 @@ document.querySelectorAll('.type-chip').forEach(btn => {
   });
 });
 
-function toggleSheet(btn) {
-  const sheet = btn.dataset.sheet;
-  activeSheets[sheet] = !activeSheets[sheet];
-  if (activeSheets[sheet]) {
-    if (sheet === 'DS') btn.classList.add('active');
-    else if (sheet === 'HS') { btn.classList.add('active'); btn.classList.add('active-accent'); }
-    else { btn.classList.add('active'); btn.classList.add('active-green'); }
-  } else {
-    btn.classList.remove('active','active-accent','active-green');
-  }
+function toggleSheet(name, btn) {
+  activeSheets[name] = !activeSheets[name];
+  if (activeSheets[name]) btn.classList.add(sheetActiveClass[name]);
+  else btn.classList.remove(sheetActiveClass[name]);
 }
 
+// ---- status ----
 function setStatus(type, msg) {
   const el = document.getElementById('statusBar');
   el.style.display = 'flex';
-  el.className = `status-bar ${type}`;
-  el.innerHTML = type === 'loading' ? `<div class="spinner"></div>${msg}` :
-    type === 'error' ? `<span>❌</span>${msg}` : `<span>✅</span>${msg}`;
+  el.className = 'status-bar ' + type;
+  const icon = type === 'loading' ? '<div class="spinner"></div>'
+             : type === 'error'   ? '<span>❌</span>'
+             :                      '<span>✅</span>';
+  el.innerHTML = icon + msg;
 }
 
+// ---- date helpers ----
 function parseDate(val) {
-  if (!val) return null;
-  // Try dd/mm/yyyy
-  let m = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (!val || !val.trim()) return null;
+  // dd/mm/yyyy or dd-mm-yyyy
+  const m = val.trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (m) return new Date(+m[3], +m[2]-1, +m[1]);
-  // ISO
-  let d = new Date(val);
-  return isNaN(d) ? null : d;
+  const d = new Date(val.trim());
+  return isNaN(d.getTime()) ? null : d;
 }
-
-function toMidnight(d) {
+function midnight(d) {
   if (!d) return null;
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
+function inRange(d, X, Y) { return d && d >= X && d <= Y; }
 
+// ---- CSV parser ----
 function parseCSV(text) {
   const rows = [];
-  const lines = text.split(/
-?
-/);
-  for (const line of lines) {
+  // split on newlines
+  const raw = text.split('\n');
+  for (let li = 0; li < raw.length; li++) {
+    let line = raw[li].replace(/\r$/, '');
     if (!line.trim()) continue;
     const cols = [];
     let cur = '', inQ = false;
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
-      if (c === '"') { inQ = !inQ; }
-      else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
-      else cur += c;
+      if (c === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) {
+        cols.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
+      }
     }
     cols.push(cur.trim());
     rows.push(cols);
@@ -390,196 +217,171 @@ function parseCSV(text) {
   return rows;
 }
 
+// ---- fetch ----
 async function fetchSheet(name) {
-  const url = csvUrl(GID[name]);
+  const url = csvUrl(name);
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Lỗi tải sheet ${name}: ${res.statusText}. Hãy đảm bảo Google Sheet đã được chia sẻ công khai.`);
+  if (!res.ok) throw new Error('Không tải được sheet ' + name + ' (HTTP ' + res.status + '). Kiểm tra Google Sheet đã chia sẻ công khai chưa.');
   const text = await res.text();
+  if (text.trim().startsWith('<!')) throw new Error('Sheet ' + name + ' trả về HTML – kiểm tra GID hoặc quyền chia sẻ.');
   return parseCSV(text);
 }
 
+// ---- HGDT filter ----
+const HGDT_RE = /hòa giải đối thoại|hgđt/i;
+const SKIP = ['tạm đình chỉ', 'chuyển thẩm quyền'];
+
+function isSkipStatus(g) {
+  const s = (g || '').trim().toLowerCase();
+  return SKIP.includes(s);
+}
+
+// DS group matchers
+const DS_MATCH = {
+  ds:   v => /dân sự/i.test(v),
+  hngd: v => /hngđ|hn&gđ|hôn nhân/i.test(v),
+  hc:   v => /hành chính/i.test(v),
+  ld:   v => /lao động/i.test(v),
+  kdtm: v => /kdtm|kinh doanh/i.test(v),
+};
+
 function processDS(rows, X, Y, group) {
-  // Col B=1, F=5, G=6, I=8
   let cu=0, moi=0, gq=0;
-  const skipStatus = ['tạm đình chỉ','chuyển thẩm quyền'];
-  for (let i=1; i<rows.length; i++) {
+  for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    const colI = (r[8]||'').trim();
-    // Exclude HGDT
+    if (!r || r.length < 2) continue;
+    const colI = (r[8] || '').trim();
     if (HGDT_RE.test(colI)) continue;
-    // Filter by group
-    if (group && group !== 'all') {
-      const fn = DS_GROUPS[group];
-      if (fn && !fn(colI)) continue;
+    if (group !== 'all') {
+      const fn = DS_MATCH[group];
+      if (!fn || !fn(colI)) continue;
     }
-    const thu_ly = toMidnight(parseDate(r[1]||''));
-    const giai_quyet = toMidnight(parseDate(r[5]||''));
-    const colG = (r[6]||'').trim().toLowerCase();
+    const B = midnight(parseDate(r[1]));
+    const F = midnight(parseDate(r[5]));
+    const skip = isSkipStatus(r[6]);
 
-    const isSkip = skipStatus.includes(colG);
-
-    // Thụ lý mới: B in [X,Y]
-    if (thu_ly && thu_ly >= X && thu_ly <= Y) moi++;
-
-    // Thụ lý cũ: B < X, (F empty OR F in [X,Y]), G != skip
-    if (thu_ly && thu_ly < X && !isSkip) {
-      if (!giai_quyet || (giai_quyet >= X && giai_quyet <= Y)) cu++;
+    if (B && inRange(B, X, Y)) moi++;
+    if (B && B < X && !skip) {
+      if (!F || inRange(F, X, Y)) cu++;
     }
-
-    // Giải quyết: F in [X,Y], F not empty, G != skip
-    if (giai_quyet && giai_quyet >= X && giai_quyet <= Y && !isSkip) gq++;
+    if (!skip && F && inRange(F, X, Y)) gq++;
   }
-  return { cu, moi, gq, ton: cu+moi-gq };
+  return { cu, moi, gq, ton: cu + moi - gq };
 }
 
 function processHS(rows, X, Y) {
-  // Same logic as DS
   let cu=0, moi=0, gq=0;
-  const skipStatus = ['tạm đình chỉ','chuyển thẩm quyền'];
-  for (let i=1; i<rows.length; i++) {
+  for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    const thu_ly = toMidnight(parseDate(r[1]||''));
-    const giai_quyet = toMidnight(parseDate(r[5]||''));
-    const colG = (r[6]||'').trim().toLowerCase();
-    const isSkip = skipStatus.includes(colG);
+    if (!r || r.length < 2) continue;
+    const B = midnight(parseDate(r[1]));
+    const F = midnight(parseDate(r[5]));
+    const skip = isSkipStatus(r[6]);
 
-    if (thu_ly && thu_ly >= X && thu_ly <= Y) moi++;
-    if (thu_ly && thu_ly < X && !isSkip) {
-      if (!giai_quyet || (giai_quyet >= X && giai_quyet <= Y)) cu++;
+    if (B && inRange(B, X, Y)) moi++;
+    if (B && B < X && !skip) {
+      if (!F || inRange(F, X, Y)) cu++;
     }
-    if (giai_quyet && giai_quyet >= X && giai_quyet <= Y && !isSkip) gq++;
+    if (!skip && F && inRange(F, X, Y)) gq++;
   }
-  return { cu, moi, gq, ton: cu+moi-gq };
+  return { cu, moi, gq, ton: cu + moi - gq };
 }
 
 function processXLHC(rows, X, Y) {
-  // Col B=1, G=6 (giải quyết cho XLHC)
+  // col B=1, col G=6 (giải quyết)
   let cu=0, moi=0, gq=0;
-  for (let i=1; i<rows.length; i++) {
+  for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    const thu_ly = toMidnight(parseDate(r[1]||''));
-    const giai_quyet = toMidnight(parseDate(r[6]||''));
+    if (!r || r.length < 2) continue;
+    const B = midnight(parseDate(r[1]));
+    const G = midnight(parseDate(r[6]));
 
-    if (thu_ly && thu_ly >= X && thu_ly <= Y) moi++;
-    if (thu_ly && thu_ly < X) {
-      if (!giai_quyet || (giai_quyet >= X && giai_quyet <= Y)) cu++;
+    if (B && inRange(B, X, Y)) moi++;
+    if (B && B < X) {
+      if (!G || inRange(G, X, Y)) cu++;
     }
-    if (giai_quyet && giai_quyet >= X && giai_quyet <= Y) gq++;
+    if (G && inRange(G, X, Y)) gq++;
   }
-  return { cu, moi, gq, ton: cu+moi-gq };
+  return { cu, moi, gq, ton: cu + moi - gq };
 }
 
+// ---- main ----
 async function runQuery() {
-  const fromVal = document.getElementById('dateFrom').value;
-  const toVal = document.getElementById('dateTo').value;
-  if (!fromVal || !toVal) { setStatus('error', 'Vui lòng chọn đầy đủ khoảng thời gian.'); return; }
-  const X = toMidnight(new Date(fromVal));
-  const Y = toMidnight(new Date(toVal));
+  const fv = document.getElementById('dateFrom').value;
+  const tv = document.getElementById('dateTo').value;
+  if (!fv || !tv) { setStatus('error', 'Vui lòng chọn đủ khoảng thời gian.'); return; }
+  const X = midnight(new Date(fv));
+  const Y = midnight(new Date(tv));
   if (X > Y) { setStatus('error', 'Ngày bắt đầu phải trước ngày kết thúc.'); return; }
 
-  const sheets = Object.keys(activeSheets).filter(k => activeSheets[k]);
-  if (!sheets.length) { setStatus('error', 'Vui lòng chọn ít nhất 1 nguồn dữ liệu.'); return; }
+  const sheets = ['DS','HS','XLHC'].filter(k => activeSheets[k]);
+  if (!sheets.length) { setStatus('error', 'Chọn ít nhất 1 nguồn dữ liệu.'); return; }
 
-  document.getElementById('btnRun').disabled = true;
+  const btn = document.getElementById('btnRun');
+  btn.disabled = true;
   document.getElementById('results').style.display = 'none';
-  setStatus('loading', 'Đang tải dữ liệu từ Google Sheets...');
 
+  const results = {};
   try {
-    const results = {};
     for (const s of sheets) {
-      setStatus('loading', `Đang xử lý sheet ${s}...`);
+      setStatus('loading', 'Đang tải sheet ' + s + '...');
       const rows = await fetchSheet(s);
-      if (s === 'DS') results.DS = processDS(rows, X, Y, selectedGroup);
-      else if (s === 'HS') results.HS = processHS(rows, X, Y);
-      else if (s === 'XLHC') results.XLHC = processXLHC(rows, X, Y);
+      setStatus('loading', 'Đang xử lý sheet ' + s + ' (' + (rows.length-1) + ' dòng)...');
+      if (s === 'DS')   results.DS   = processDS(rows, X, Y, selectedGroup);
+      if (s === 'HS')   results.HS   = processHS(rows, X, Y);
+      if (s === 'XLHC') results.XLHC = processXLHC(rows, X, Y);
     }
-
-    // Totals
-    let total = { cu:0, moi:0, gq:0, ton:0 };
-    Object.values(results).forEach(r => {
-      total.cu += r.cu; total.moi += r.moi; total.gq += r.gq; total.ton += r.ton;
-    });
-
-    // Render totals
-    document.getElementById('totalStats').innerHTML = `
-      <div class="stat-box cu">
-        <div class="stat-label">Thụ lý cũ còn lại</div>
-        <div class="stat-value">${total.cu.toLocaleString()}</div>
-        <div class="stat-sub">vụ/án</div>
-      </div>
-      <div class="stat-box moi">
-        <div class="stat-label">Thụ lý mới</div>
-        <div class="stat-value">${total.moi.toLocaleString()}</div>
-        <div class="stat-sub">vụ/án</div>
-      </div>
-      <div class="stat-box gq">
-        <div class="stat-label">Đã giải quyết</div>
-        <div class="stat-value">${total.gq.toLocaleString()}</div>
-        <div class="stat-sub">vụ/án</div>
-      </div>
-      <div class="stat-box ton">
-        <div class="stat-label">Còn tồn</div>
-        <div class="stat-value">${total.ton.toLocaleString()}</div>
-        <div class="stat-sub">vụ/án</div>
-      </div>
-    `;
-
-    // Render detail table
-    const sheetNames = { DS: 'Dân sự mở rộng', HS: 'Hình sự', XLHC: 'Xử lý hành chính' };
-    const tagClass = { DS: 'tag-ds', HS: 'tag-hs', XLHC: 'tag-hc' };
-    let rows_html = '';
-    Object.entries(results).forEach(([k, v]) => {
-      rows_html += `<tr>
-        <td><span class="sheet-tag ${tagClass[k]}">${sheetNames[k]}</span></td>
-        <td class="num">${v.cu.toLocaleString()}</td>
-        <td class="num">${v.moi.toLocaleString()}</td>
-        <td class="num">${v.gq.toLocaleString()}</td>
-        <td class="num" style="font-weight:700;color:var(--danger)">${v.ton.toLocaleString()}</td>
-      </tr>`;
-    });
-    // Total row
-    rows_html += `<tr style="background:#f0f4fa;">
-      <td style="font-weight:700;">Tổng cộng</td>
-      <td class="num" style="font-weight:700">${total.cu.toLocaleString()}</td>
-      <td class="num" style="font-weight:700">${total.moi.toLocaleString()}</td>
-      <td class="num" style="font-weight:700">${total.gq.toLocaleString()}</td>
-      <td class="num" style="font-weight:700;color:var(--danger)">${total.ton.toLocaleString()}</td>
-    </tr>`;
-
-    const groupLabel = document.querySelector('.type-chip.selected')?.textContent || '';
-    document.getElementById('detailContent').innerHTML = `
-      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:12px;">
-        📅 Từ <b>${fromVal}</b> đến <b>${toVal}</b>
-        ${selectedGroup !== 'all' ? ` &nbsp;|&nbsp; 📂 Nhóm: <b>${groupLabel}</b>` : ''}
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="result-table">
-          <thead><tr>
-            <th>Nguồn dữ liệu</th>
-            <th style="text-align:right">Thụ lý cũ còn lại</th>
-            <th style="text-align:right">Thụ lý mới</th>
-            <th style="text-align:right">Giải quyết</th>
-            <th style="text-align:right">Còn tồn</th>
-          </tr></thead>
-          <tbody>${rows_html}</tbody>
-        </table>
-      </div>
-    `;
-
-    document.getElementById('results').style.display = 'block';
-    setStatus('success', `Đã thống kê xong ${Object.keys(results).length} nguồn dữ liệu.`);
   } catch(e) {
     setStatus('error', e.message);
-  } finally {
-    document.getElementById('btnRun').disabled = false;
+    btn.disabled = false;
+    return;
   }
+
+  // totals
+  let tot = {cu:0,moi:0,gq:0,ton:0};
+  Object.values(results).forEach(r => { tot.cu+=r.cu; tot.moi+=r.moi; tot.gq+=r.gq; tot.ton+=r.ton; });
+
+  document.getElementById('totalStats').innerHTML =
+    statBox('cu','Thụ lý cũ còn lại', tot.cu) +
+    statBox('moi','Thụ lý mới', tot.moi) +
+    statBox('gq','Đã giải quyết', tot.gq) +
+    statBox('ton','Còn tồn', tot.ton);
+
+  const names  = {DS:'Dân sự mở rộng', HS:'Hình sự', XLHC:'Xử lý hành chính'};
+  const tags   = {DS:'tag-ds', HS:'tag-hs', XLHC:'tag-hc'};
+  let tbody = '';
+  Object.entries(results).forEach(([k,v]) => {
+    tbody += '<tr><td><span class="tag ' + tags[k] + '">' + names[k] + '</span></td>' +
+      '<td class="num">' + v.cu + '</td><td class="num">' + v.moi + '</td>' +
+      '<td class="num">' + v.gq + '</td><td class="num" style="color:var(--danger)">' + v.ton + '</td></tr>';
+  });
+  tbody += '<tr class="total-row"><td>Tổng cộng</td>' +
+    '<td class="num">' + tot.cu + '</td><td class="num">' + tot.moi + '</td>' +
+    '<td class="num">' + tot.gq + '</td><td class="num" style="color:var(--danger)">' + tot.ton + '</td></tr>';
+
+  const groupLabel = document.querySelector('.type-chip.selected')?.textContent || '';
+  document.getElementById('detailContent').innerHTML =
+    '<div style="font-size:.8rem;color:var(--muted);margin-bottom:12px">📅 Từ <b>' + fv + '</b> đến <b>' + tv + '</b>' +
+    (selectedGroup !== 'all' ? ' &nbsp;|&nbsp; 📂 <b>' + groupLabel + '</b>' : '') + '</div>' +
+    '<div style="overflow-x:auto"><table class="result-table"><thead><tr>' +
+    '<th>Nguồn</th><th style="text-align:right">TL cũ còn lại</th><th style="text-align:right">TL mới</th>' +
+    '<th style="text-align:right">Giải quyết</th><th style="text-align:right">Còn tồn</th>' +
+    '</tr></thead><tbody>' + tbody + '</tbody></table></div>';
+
+  document.getElementById('results').style.display = 'block';
+  setStatus('success', 'Thống kê xong ' + sheets.length + ' sheet.');
+  btn.disabled = false;
 }
 
-// Set default dates
-const today = new Date();
-const y = today.getFullYear();
-document.getElementById('dateFrom').value = `${y}-01-01`;
-document.getElementById('dateTo').value = `${y}-12-31`;
+function statBox(cls, label, val) {
+  return '<div class="stat-box ' + cls + '"><div class="stat-label">' + label + '</div>' +
+    '<div class="stat-value">' + val.toLocaleString() + '</div></div>';
+}
+
+// defaults
+const now = new Date();
+document.getElementById('dateFrom').value = now.getFullYear() + '-01-01';
+document.getElementById('dateTo').value   = now.getFullYear() + '-12-31';
 </script>
 </body>
 </html>
