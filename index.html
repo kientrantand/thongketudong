@@ -195,7 +195,7 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
     <div class="card"><div class="sec-title">Chi tiết theo nguồn</div><div id="detail"></div></div>
     <div class="card" id="gloaiCard" style="display:none">
       <div class="sec-title" style="justify-content:space-between">
-        <span>📊 Thống kê hình thức giải quyết theo loại án (cột G)</span>
+        <span>📊 Thống kê chi tiết kết quả giải quyết theo loại án (cột G)</span>
         <button onclick="toggleGloai()" id="gloaiToggleBtn" style="padding:5px 14px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);font-size:.78rem;font-family:inherit;font-weight:600;cursor:pointer;color:var(--blue)">▼ Ẩn chi tiết</button>
       </div>
       <div id="gloaiBody"></div>
@@ -559,8 +559,8 @@ function procDS(rows, X, Y, grp) {
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,tags,skipReason:''});
 
-    // ★ Thu thập cho bảng thống kê cột G (chỉ những vụ trong kỳ có ngày GQ)
-    if (F && inR(F, X, Y)) {
+    // Thu thập cho bảng thống kê cột G (chỉ vụ có ngày GQ trong kỳ, không tính TĐC)
+    if (F && inR(F, X, Y) && !isTdc) {
       gLoaiData.push({loaiAn: classifyLoaiAn(I), loaiGQ: classifyGQ(gStr), ma:maVu, row:i+1, B, F, gStr, loai:I});
     }
   }
