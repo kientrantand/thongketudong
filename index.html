@@ -77,6 +77,39 @@ table.dt .trow td{background:#f0f4fa;font-weight:700}
 .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:.7rem;font-weight:600}
 .tds{background:#eaf3ff;color:#1b4f72}.ths{background:#fff5e0;color:#b7600a}.thc{background:#eafff7;color:#1a7a5a}
 #results{display:none}
+
+/* ── LOG PANEL ── */
+#logPanel{display:none;margin-top:0}
+.log-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+.log-search{padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit;outline:none;width:220px;transition:border-color .2s}
+.log-search:focus{border-color:var(--blue)}
+.log-filter-btn{padding:5px 11px;border-radius:14px;border:1.5px solid var(--border);background:var(--surface);font-size:.75rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;color:var(--muted)}
+.log-filter-btn.active{color:#fff}
+.log-filter-btn[data-f="moi"].active{background:#3498db;border-color:#3498db}
+.log-filter-btn[data-f="cu"].active{background:var(--accent);border-color:var(--accent);color:var(--navy)}
+.log-filter-btn[data-f="gq"].active{background:var(--success);border-color:var(--success)}
+.log-filter-btn[data-f="tdc"].active{background:var(--warning);border-color:var(--warning);color:var(--navy)}
+.log-filter-btn[data-f="skip"].active{background:var(--muted);border-color:var(--muted)}
+.log-filter-btn[data-f="all"].active{background:var(--navy);border-color:var(--navy)}
+.log-export-btn{margin-left:auto;padding:6px 14px;border-radius:8px;border:none;background:var(--blue);color:#fff;font-size:.78rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s}
+.log-export-btn:hover{background:var(--navy)}
+.log-count{font-size:.75rem;color:var(--muted);white-space:nowrap}
+
+.log-table-wrap{overflow-x:auto;max-height:520px;overflow-y:auto;border:1px solid var(--border);border-radius:10px}
+table.log-tbl{width:100%;border-collapse:collapse;font-size:.8rem;min-width:780px}
+table.log-tbl thead th{background:var(--navy);color:#fff;padding:9px 11px;text-align:left;font-size:.72rem;font-weight:600;position:sticky;top:0;z-index:2}
+table.log-tbl tbody tr:hover td{background:#f5f8ff}
+table.log-tbl td{padding:7px 11px;border-bottom:1px solid var(--border);vertical-align:top}
+table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
+
+.ltag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:.68rem;font-weight:700;white-space:nowrap}
+.ltag.moi{background:#dbeeff;color:#1255a0}
+.ltag.cu{background:#fff3d6;color:#8a5200}
+.ltag.gq{background:#d4f7e5;color:#1a6b40}
+.ltag.tdc{background:#ffe9cc;color:#7a3c00}
+.ltag.skip{background:#eeeeee;color:#666}
+.ltag.none{background:#ffeaea;color:#a00}
+.row-skip td{opacity:.45}
 </style>
 </head>
 <body>
@@ -133,6 +166,40 @@ table.dt .trow td{background:#f0f4fa;font-weight:700}
   <div id="results">
     <div class="card"><div class="sec-title">Tổng hợp</div><div class="sgrid" id="tStats"></div></div>
     <div class="card"><div class="sec-title">Chi tiết theo nguồn</div><div id="detail"></div></div>
+  </div>
+
+  <!-- LOG PANEL -->
+  <div class="card" id="logPanel">
+    <div class="sec-title">🔍 Log kiểm tra chi tiết từng vụ án</div>
+    <div class="log-toolbar">
+      <input class="log-search" id="logSearch" placeholder="🔎 Tìm mã vụ, loại án, ghi chú..." oninput="renderLogTable()">
+      <button class="log-filter-btn active" data-f="all" onclick="setLogFilter('all')">Tất cả</button>
+      <button class="log-filter-btn" data-f="moi" onclick="setLogFilter('moi')">🔵 TL mới</button>
+      <button class="log-filter-btn" data-f="cu" onclick="setLogFilter('cu')">🟡 TL cũ</button>
+      <button class="log-filter-btn" data-f="gq" onclick="setLogFilter('gq')">🟢 Giải quyết</button>
+      <button class="log-filter-btn" data-f="tdc" onclick="setLogFilter('tdc')">🟠 Tạm đình chỉ</button>
+      <button class="log-filter-btn" data-f="skip" onclick="setLogFilter('skip')">⚫ Bỏ qua</button>
+      <span class="log-count" id="logCount"></span>
+      <button class="log-export-btn" onclick="exportLogCSV()">⬇ Xuất CSV</button>
+    </div>
+    <div class="log-table-wrap">
+      <table class="log-tbl">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nguồn</th>
+            <th>Dòng GS</th>
+            <th>Mã / Tên vụ</th>
+            <th>Ngày thụ lý (B)</th>
+            <th>Ngày GQ (F)</th>
+            <th>Ghi chú (G)</th>
+            <th>Loại án (I)</th>
+            <th>Nhãn đếm</th>
+          </tr>
+        </thead>
+        <tbody id="logTbody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -366,6 +433,10 @@ const GMATCH = {
   kdtm: v => /kdtm|kinh doanh/i.test(v),
 };
 
+// ── LOG store ─────────────────────────────────────────────────────────
+let logEntries = [];   // toàn bộ entries từ lần chạy gần nhất
+let logFilter  = 'all';
+
 // ── xử lý sheet ───────────────────────────────────────────────────────
 // DS: B=idx1, F=idx5, G=idx6, I=idx8 — không tiêu đề
 function procDS(rows, X, Y, grp) {
@@ -373,18 +444,31 @@ function procDS(rows, X, Y, grp) {
   for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
     const I = cellStr(c[8]);
-    if (HGDT.test(I)) continue;
-    if (grp !== 'all') { const fn = GMATCH[grp]; if (!fn || !fn(I)) continue; }
+    // --- lấy mã/tên vụ từ cột A (idx0) hoặc cột C (idx2) ---
+    const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
+    if (HGDT.test(I)) {
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'HGĐT'});
+      continue;
+    }
+    if (grp !== 'all') { const fn = GMATCH[grp]; if (!fn || !fn(I)) {
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'Lọc nhóm'});
+      continue;
+    }}
     const B  = mn(parseGvizDate(c[1]));
     const F  = mn(parseGvizDate(c[5]));
     const gStr = cellStr(c[6]);
     const sk = isSkip(gStr);
-    if (!B) continue;
-    if (inR(B, X, Y)) moi++;
-    if (B < X && !sk && (!F || inR(F, X, Y))) cu++;
-    if (!sk && F && inR(F, X, Y)) gq++;
-    // Tạm đình chỉ: án trong kỳ (B<Y) và cột G chứa "tạm đình chỉ"
-    if (isTDC(gStr) && B <= Y) tdc++;
+    if (!B) {
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B'});
+      continue;
+    }
+    const tags = [];
+    if (inR(B, X, Y))                              { moi++; tags.push('moi'); }
+    if (B < X && !sk && (!F || inR(F, X, Y)))      { cu++;  tags.push('cu');  }
+    if (!sk && F && inR(F, X, Y))                  { gq++;  tags.push('gq');  }
+    if (isTDC(gStr) && B <= Y)                     { tdc++; tags.push('tdc'); }
+    if (tags.length === 0) tags.push('none');
+    logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,tags,skipReason:''});
   }
   return { cu, moi, gq, tdc, ton: cu+moi-gq };
 }
@@ -394,15 +478,22 @@ function procHS(rows, X, Y) {
   let cu=0, moi=0, gq=0, tdc=0;
   for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
+    const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
     const B  = mn(parseGvizDate(c[1]));
     const F  = mn(parseGvizDate(c[5]));
     const gStr = cellStr(c[6]);
     const sk = isSkip(gStr);
-    if (!B) continue;
-    if (inR(B, X, Y)) moi++;
-    if (B < X && !sk && (!F || inR(F, X, Y))) cu++;
-    if (!sk && F && inR(F, X, Y)) gq++;
-    if (isTDC(gStr) && B <= Y) tdc++;
+    if (!B) {
+      logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr,loai:'',tags:['skip'],skipReason:'Không có ngày B'});
+      continue;
+    }
+    const tags = [];
+    if (inR(B, X, Y))                              { moi++; tags.push('moi'); }
+    if (B < X && !sk && (!F || inR(F, X, Y)))      { cu++;  tags.push('cu');  }
+    if (!sk && F && inR(F, X, Y))                  { gq++;  tags.push('gq');  }
+    if (isTDC(gStr) && B <= Y)                     { tdc++; tags.push('tdc'); }
+    if (tags.length === 0) tags.push('none');
+    logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr,loai:'',tags,skipReason:''});
   }
   return { cu, moi, gq, tdc, ton: cu+moi-gq };
 }
@@ -412,12 +503,19 @@ function procXLHC(rows, X, Y) {
   let cu=0, moi=0, gq=0;
   for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
+    const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
     const B = mn(parseGvizDate(c[1]));
     const G = mn(parseGvizDate(c[6]));
-    if (!B) continue;
-    if (inR(B, X, Y)) moi++;
-    if (B < X && (!G || inR(G, X, Y))) cu++;
-    if (G && inR(G, X, Y)) gq++;
+    if (!B) {
+      logEntries.push({src:'XLHC',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:'',tags:['skip'],skipReason:'Không có ngày B'});
+      continue;
+    }
+    const tags = [];
+    if (inR(B, X, Y))                   { moi++; tags.push('moi'); }
+    if (B < X && (!G || inR(G, X, Y)))  { cu++;  tags.push('cu');  }
+    if (G && inR(G, X, Y))              { gq++;  tags.push('gq');  }
+    if (tags.length === 0) tags.push('none');
+    logEntries.push({src:'XLHC',row:i+1,ma:maVu,B,F:G,gStr:'',loai:'',tags,skipReason:''});
   }
   return { cu, moi, gq, tdc: 0, ton: cu+moi-gq };
 }
@@ -435,6 +533,8 @@ async function run() {
   const btn = document.getElementById('runBtn');
   btn.disabled = true;
   document.getElementById('results').style.display = 'none';
+  document.getElementById('logPanel').style.display = 'none';
+  logEntries = [];   // reset log
 
   const res = {};
   let totalRows = 0;
@@ -486,6 +586,15 @@ async function run() {
     +'</tr></thead><tbody>'+tb+'</tbody></table></div>';
 
   document.getElementById('results').style.display = 'block';
+
+  // Hiển thị log
+  logFilter = 'all';
+  document.querySelectorAll('.log-filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.log-filter-btn[data-f="all"]').classList.add('active');
+  document.getElementById('logSearch').value = '';
+  renderLogTable();
+  document.getElementById('logPanel').style.display = 'block';
+
   st('ok', 'Hoàn tất – đã xử lý ' + totalRows + ' dòng dữ liệu.');
   btn.disabled = false;
 }
@@ -493,6 +602,109 @@ async function run() {
 function box(cls, label, val) {
   return '<div class="sbox '+cls+'"><div class="slabel">'+label+'</div>'
     +'<div class="sval">'+val.toLocaleString('vi-VN')+'</div></div>';
+}
+
+// ── LOG helpers ───────────────────────────────────────────────────────
+const TAG_LABEL = {moi:'TL mới', cu:'TL cũ', gq:'Giải quyết', tdc:'Tạm đình chỉ', skip:'Bỏ qua', none:'Không đếm'};
+const SRC_LABEL = {DS:'<span class="tag tds">DS</span>', HS:'<span class="tag ths">HS</span>', XLHC:'<span class="tag thc">XLHC</span>'};
+
+function fmtD(d) { return d ? fmtDate(d) : '<span style="color:#ccc">—</span>'; }
+
+function makeTags(e) {
+  if (e.skipReason) return '<span class="ltag skip">⛔ Bỏ qua: '+e.skipReason+'</span>';
+  return e.tags.map(t => '<span class="ltag '+t+'">'+TAG_LABEL[t]+'</span>').join(' ');
+}
+
+function setLogFilter(f) {
+  logFilter = f;
+  document.querySelectorAll('.log-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.f === f);
+  });
+  renderLogTable();
+}
+
+function renderLogTable() {
+  const q = (document.getElementById('logSearch').value || '').trim().toLowerCase();
+  const filtered = logEntries.filter(e => {
+    // filter by tab
+    if (logFilter !== 'all') {
+      if (logFilter === 'skip' && !e.skipReason) return false;
+      if (logFilter !== 'skip' && e.skipReason) return false;
+      if (logFilter !== 'skip' && !e.tags.includes(logFilter)) return false;
+    }
+    // filter by search
+    if (q) {
+      const haystack = [e.ma, e.src, e.loai, e.gStr, e.skipReason].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('logCount').textContent = filtered.length + ' / ' + logEntries.length + ' dòng';
+
+  const rows = filtered.slice(0, 2000).map((e, idx) => {
+    const isSkipRow = !!e.skipReason;
+    return '<tr class="'+(isSkipRow?'row-skip':'')+'">'
+      +'<td class="mono" style="color:var(--muted)">'+(idx+1)+'</td>'
+      +'<td>'+(SRC_LABEL[e.src]||e.src)+'</td>'
+      +'<td class="mono" style="color:var(--muted)">'+e.row+'</td>'
+      +'<td style="max-width:200px;word-break:break-word">'+escH(e.ma)+'</td>'
+      +'<td class="mono">'+fmtD(e.B)+'</td>'
+      +'<td class="mono">'+fmtD(e.F)+'</td>'
+      +'<td style="max-width:180px;word-break:break-word;font-size:.75rem">'+escH(e.gStr||'—')+'</td>'
+      +'<td style="max-width:160px;word-break:break-word;font-size:.75rem">'+escH(e.loai||'—')+'</td>'
+      +'<td>'+makeTags(e)+'</td>'
+      +'</tr>';
+  }).join('');
+
+  document.getElementById('logTbody').innerHTML = rows ||
+    '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">Không có dòng nào phù hợp</td></tr>';
+
+  if (filtered.length > 2000) {
+    document.getElementById('logCount').textContent += ' (hiển thị 2000 đầu)';
+  }
+}
+
+function escH(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function exportLogCSV() {
+  const q = (document.getElementById('logSearch').value || '').trim().toLowerCase();
+  const filtered = logEntries.filter(e => {
+    if (logFilter !== 'all') {
+      if (logFilter === 'skip' && !e.skipReason) return false;
+      if (logFilter !== 'skip' && e.skipReason) return false;
+      if (logFilter !== 'skip' && !e.tags.includes(logFilter)) return false;
+    }
+    if (q) {
+      const h = [e.ma, e.src, e.loai, e.gStr, e.skipReason].join(' ').toLowerCase();
+      if (!h.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const BOM = '\uFEFF';
+  const header = ['#','Nguồn','Dòng GS','Mã / Tên vụ','Ngày thụ lý (B)','Ngày GQ (F)','Ghi chú (G)','Loại án (I)','Nhãn đếm'];
+  const lines = [header.join(',')];
+  filtered.forEach((e, i) => {
+    const tagStr = e.skipReason ? ('Bỏ qua: '+e.skipReason) : e.tags.map(t=>TAG_LABEL[t]).join(' | ');
+    lines.push([
+      i+1, e.src, e.row,
+      '"'+String(e.ma).replace(/"/g,'""')+'"',
+      e.B ? fmtDate(e.B) : '',
+      e.F ? fmtDate(e.F) : '',
+      '"'+String(e.gStr).replace(/"/g,'""')+'"',
+      '"'+String(e.loai).replace(/"/g,'""')+'"',
+      '"'+tagStr+'"'
+    ].join(','));
+  });
+
+  const blob = new Blob([BOM + lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'log_vu_an_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
 }
 </script>
 </body>
