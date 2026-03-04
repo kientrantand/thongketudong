@@ -539,26 +539,23 @@ function procDS(rows, X, Y, grp) {
     const B    = mn(parseGvizDate(c[1]));
     const F    = mn(parseGvizDate(c[5]));
     const gStr = cellStr(c[6]);
-    const sk   = isSkip(gStr);
+    const skDS = (gStr||'').trim().toLowerCase().includes('chuyển thẩm quyền');
     if (!B) {
       logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B'});
       continue;
     }
 
-    const isMoi = inR(B, X, Y);
     const isTdc = isTDC(gStr) && B <= Y;
-
-    // ★ FIX: vụ vừa TL mới vừa TạmĐC → dòng "TạmĐC thêm" do GG Sheet tự tạo → bỏ qua
-    if (isMoi && isTdc) {
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,tags:['skip'],skipReason:'TL mới + TạmĐC (dòng phụ GSheet)'});
-      continue;
-    }
-
     const tags = [];
-    if (isMoi)                                       { moi++; tags.push('moi'); }
-    if (B < X && !sk && (!F || inR(F, X, Y)))        { cu++;  tags.push('cu');  }
-    if (!sk && F && inR(F, X, Y))                    { gq++;  tags.push('gq');  }
-    if (isTdc)                                       { tdc++; tags.push('tdc'); }
+
+    if (isTdc) {
+      // Dòng tạm đình chỉ: chỉ đếm tdc, bỏ qua moi/cu/gq hoàn toàn
+      tdc++; tags.push('tdc');
+    } else {
+      if (inR(B, X, Y))                          { moi++; tags.push('moi'); }
+      if (B < X && !skDS && (!F || inR(F, X, Y))){ cu++;  tags.push('cu');  }
+      if (!skDS && F && inR(F, X, Y))            { gq++;  tags.push('gq');  }
+    }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,tags,skipReason:''});
 
