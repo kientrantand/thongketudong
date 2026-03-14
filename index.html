@@ -474,6 +474,10 @@ function isSkip(s) {
 function isTDC(s) {
   return (s||'').trim().toLowerCase().includes('tạm đình chỉ');
 }
+function isKhoiPhuc(s) {
+  const v = (s||'').trim().toLowerCase();
+  return v.includes('khôi phục') || v.includes('phục hồi');
+}
 const GMATCH = {
   ds  : v => /dân sự/i.test(v),
   hngd: v => /hngđ|hôn nhân/i.test(v),
@@ -545,7 +549,8 @@ function procDS(rows, X, Y, grp) {
       continue;
     }
 
-    const isTdc = isTDC(gStr) && B <= Y;
+    const jStr  = cellStr(c[9]);  // Cột J (DATA_DS_EXTEND): "khôi phục"/"phục hồi" → bỏ qua tạm đình chỉ
+    const isTdc = isTDC(gStr) && B <= Y && !isKhoiPhuc(jStr);
     const tags = [];
 
     if (isTdc) {
@@ -585,7 +590,7 @@ function procHS(rows, X, Y) {
     if (inR(B, X, Y))                              { moi++; tags.push('moi'); }
     if (B < X && !sk && (!F || inR(F, X, Y)))      { cu++;  tags.push('cu');  }
     if (!sk && F && inR(F, X, Y))                  { gq++;  tags.push('gq');  }
-    if (isTDC(gStr) && B <= Y)                     { tdc++; tags.push('tdc'); }
+    if (isTDC(gStr) && B <= Y && !isKhoiPhuc(gStr)) { tdc++; tags.push('tdc'); }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr,loai:'',tags,skipReason:''});
   }
