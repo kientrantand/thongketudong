@@ -741,7 +741,7 @@ body::after {
 
 <script>
 const SPREADSHEET_ID = "1FEQRl3QJT6ZlVzptuos9oiXg2yq0LctKHU_NqtY67hU";
-const GEMINI_API_KEY = "AIzaSyC5SPfE_A7V6MB9GB25OfTkwZtIt9FmAoo"; // ← Dán API key Gemini vào đây
+const GEMINI_API_KEY = ""; // ← Dán API key Gemini vào đây
 const TOA_SHEET = "TOA";
 const sheets = [
     { name: "DATA_DS_EXTEND", type: "DS" },
@@ -1200,33 +1200,58 @@ async function searchToaWithAI(question, apiKey) {
         .join("\n");
 
     // 3. Tạo prompt
-    const prompt = `Bạn là trợ lý tra cứu thẩm quyền tòa án Việt Nam.
-Dưới đây là dữ liệu các tòa án khu vực sau khi sáp nhập:
-- TOA: tên tòa án khu vực hiện tại
-- SO_XA: số đơn vị hành chính cấp xã thuộc thẩm quyền
-- DS_XA: danh sách tên các xã/phường/thị trấn thuộc thẩm quyền (ngăn cách bởi dấu phẩy)
-- TOA_CU: tên các tòa án cũ (trước khi sáp nhập) mà tòa hiện tại kế thừa
+    const prompt = `Bạn là hệ thống tra cứu thẩm quyền tòa án Việt Nam. Nhiệm vụ duy nhất là tìm đúng tòa án trong dữ liệu.
+
+CẤU TRÚC DỮ LIỆU (mỗi dòng là một tòa án):
+- TOA: Tên tòa án khu vực hiện tại (sau sáp nhập)
+- SO_XA: Số đơn vị hành chính cấp xã thuộc thẩm quyền
+- DS_XA: Danh sách TÊN XÃ/PHƯỜNG/THỊ TRẤN thuộc thẩm quyền
+- TOA_CU: Tên các tòa án/huyện/quận cũ trước khi sáp nhập — thường ghi kèm tên tỉnh/thành phố
+
+QUY TẮC TRA CỨU BẮT BUỘC - PHẢI TUÂN THỦ TUYỆT ĐỐI:
+
+TRƯỜNG HỢP 1 - Hỏi "xã/phường X thuộc tỉnh/thành Y":
+  → Bước 1: Tìm các hàng có DS_XA chứa tên "X"
+  → Bước 2: Trong các hàng đó, tìm hàng có TOA_CU chứa tên tỉnh/thành "Y"
+  → KẾT QUẢ: Chỉ hàng thỏa mãn ĐỒNG THỜI cả DS_XA có X VÀ TOA_CU có Y
+  → KHÔNG được chọn hàng chỉ khớp một trong hai điều kiện
+  → Ví dụ: "phường Thống Nhất, tỉnh Hòa Bình" → DS_XA phải có "Thống Nhất" VÀ TOA_CU phải có "Hòa Bình"
+
+TRƯỜNG HỢP 2 - Hỏi chỉ tên xã/phường (không có tỉnh):
+  → Tìm trong DS_XA, liệt kê TẤT CẢ kết quả khớp
+
+TRƯỜNG HỢP 3 - Hỏi tên tòa cũ / tên huyện cũ:
+  → Tìm trong TOA_CU
+
+TRƯỜNG HỢP 4 - Hỏi tên tòa khu vực hiện tại:
+  → Tìm trong TOA
+
+LƯU Ý: So sánh không phân biệt dấu và hoa thường.
+Ví dụ: "Vĩnh Thông" = "vinh thong", "Hòa Bình" = "hoa binh", "Thống Nhất" = "thong nhat"
 
 DỮ LIỆU:
-${dataLines}
+\${dataLines}
 
-CÂU HỎI: ${question}
+CÂU HỎI: \${question}
 
-Hãy tìm đúng kết quả trong dữ liệu trên và trả lời theo định dạng HTML sau (không markdown, chỉ HTML thuần):
+Trả lời bằng HTML thuần (không markdown, không giải thích ngoài HTML):
+
+Nếu tìm thấy:
 <div>
   <div class="field-label">TOÀ ÁN CÓ THẨM QUYỀN</div>
-  <div class="field-value" style="font-size:15px;font-weight:700;color:#0f2557">[Tên tòa]</div>
-  <div class="field-label" style="margin-top:10px">ĐƠN VỊ HÀNH CHÍNH LIÊN QUAN</div>
-  <div class="field-value">[Tên xã/huyện được hỏi]</div>
+  <div class="field-value" style="font-size:15px;font-weight:700;color:#0f2557">[Tên tòa từ cột TOA]</div>
+  <div class="field-label" style="margin-top:10px">ĐƠN VỊ HÀNH CHÍNH</div>
+  <div class="field-value">[Tên xã/phường/huyện được hỏi]</div>
   <div class="field-label" style="margin-top:10px">SỐ ĐƠN VỊ QUẢN LÝ</div>
-  <div class="field-value">[Số xã] xã/phường/thị trấn</div>
-  <div class="field-label" style="margin-top:10px">TÒA ÁN TRƯỚC KHI SÁP NHẬP</div>
-  <div class="field-value">[Tên tòa cũ]</div>
-  <div class="field-label" style="margin-top:10px">GIẢI THÍCH</div>
-  <div class="field-value">[Giải thích ngắn gọn tại sao đây là kết quả đúng]</div>
+  <div class="field-value">[SO_XA] xã/phường/thị trấn</div>
+  <div class="field-label" style="margin-top:10px">TÒA ÁN CŨ (TRƯỚC SÁP NHẬP)</div>
+  <div class="field-value">[TOA_CU]</div>
+  <div class="field-label" style="margin-top:10px">LÝ DO XÁC ĐỊNH</div>
+  <div class="field-value">[Giải thích: tìm thấy X trong DS_XA và Y trong TOA_CU của hàng này]</div>
 </div>
-Nếu không tìm thấy kết quả phù hợp, trả về: <div class="field-value">Không tìm thấy thông tin phù hợp với câu hỏi.</div>
-Chỉ trả về HTML, không giải thích thêm bên ngoài.`;
+
+Nếu không tìm thấy:
+<div class="field-value" style="color:#dc2626">Không tìm thấy dữ liệu phù hợp. [Lý do ngắn]</div>`
 
     // 4. Gọi Gemini API
     const resp = await fetch(
