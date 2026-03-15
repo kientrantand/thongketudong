@@ -741,7 +741,6 @@ body::after {
 
 <script>
 const SPREADSHEET_ID = "1FEQRl3QJT6ZlVzptuos9oiXg2yq0LctKHU_NqtY67hU";
-const GEMINI_API_KEY = ""; // ← Dán API key Gemini vào đây
 const TOA_SHEET = "TOA";
 const sheets = [
     { name: "DATA_DS_EXTEND", type: "DS" },
@@ -871,63 +870,114 @@ function matchToaHienTai(toaHienTaiRaw, query) {
 /* ── Tra cứu thẩm quyền tòa ─────────────────────────── */
 async function searchToa(question) {
     const rows = await fetchSheet(TOA_SHEET);
+    const qClean = removeVietnameseTones(question);
+    const results = [];
 
-    // Duyệt toàn bộ, thu thập kết quả theo độ ưu tiên
-    // Ưu tiên 1: Khớp tòa cũ (cột E) - chính xác nhất vì tên tòa cũ là tên cụ thể
-    // Ưu tiên 2: Khớp xã (cột D)
-    // Ưu tiên 3: Khớp tòa hiện tại (cột B)
+    // ── Trích xuất 2 vế từ câu hỏi ──────────────────────
+    // Vế 1: tên xã/phường/thị trấn (cột D)
+    // Vế 2: tên tỉnh/thành phố (cột E)
 
-    let result1 = null; // tòa cũ
-    let result2 = null; // xã
-    let result3 = null; // tòa hiện tại
+    // Tách tên xã/phường: lấy phần sau từ khóa xã/phường/thị trấn
+    const xaMatch = qClean.match(
+        /(?:xa |phuong |thi tran |thi xa )([a-z0-9 ]+?)(?:\s*,|\s+(?:tinh|thanh pho|tp\.?|tinh thanh|quan|huyen)|$)/i
+    );
+    // Tách tên tỉnh/thành: lấy phần sau từ khóa tỉnh/thành
+    const tinhMatch = qClean.match(
+        /(?:tinh|thanh pho|tp\.?)\s+([a-z0-9 ]+?)(?:\s*,|\s+(?:cu|co|la|thuoc)|$)/i
+    ) || qClean.match(/,\s*((?:[a-z]+\s*){1,3})(?:\s+(?:cu|co|la|thuoc|tham quyen)|$)/i);
 
+    const tenXa   = xaMatch  ? xaMatch[1].trim()   : null;
+    const tenTinh = tinhMatch ? tinhMatch[1].trim() : null;
+
+    // ── Hàm helper: chuẩn hoá so sánh ───────────────────
+    const norm = s => removeVietnameseTones((s || "").toString().trim());
+
+    // ── Tìm kiếm theo từng dòng dữ liệu ─────────────────
     for (const row of rows) {
         const toaHienTaiRaw = row.c[1]?.v;
         const soLuongXa    = row.c[2]?.v;
-        const danhSachXaRaw= row.c[3]?.v;
-        const toaCuRaw     = row.c[4]?.v;
+        const danhSachXaRaw= row.c[3]?.v;  // Cột D
+        const toaCuRaw     = row.c[4]?.v;  // Cột E
 
         if (!toaHienTaiRaw) continue;
 
-        // 1. Tra theo tòa cũ (split theo dấu phẩy, so khớp chính xác từng tòa)
-        if (!result1 && matchToaCu(toaCuRaw, question)) {
-            result1 = buildCard([
-                ["Tòa án cũ (trước khi sáp nhập)", toaCuRaw],
-                ["Nay thuộc thẩm quyền", toaHienTaiRaw],
-                ["Số lượng đơn vị hành chính", soLuongXa ? soLuongXa + " xã/phường/thị trấn" : null],
-                ["Danh sách đơn vị", danhSachXaRaw]
-            ]);
-        }
+        const colD = norm(danhSachXaRaw); // cột D đã chuẩn hoá
+        const colE = norm(toaCuRaw);      // cột E đã chuẩn hoá
 
-        // 2. Tra theo xã (cột D)
-        if (!result2 && danhSachXaRaw) {
-            for (const xa of danhSachXaRaw.split(",")) {
-                const xaTrim = xa.trim();
-                if (matchXa(xaTrim, question)) {
-                    result2 = buildCard([
-                        ["Đơn vị hành chính", xaTrim],
-                        ["Thuộc thẩm quyền", toaHienTaiRaw],
-                        ["Số lượng xã", soLuongXa],
-                        ["Tòa án trước khi sáp nhập", toaCuRaw]
-                    ]);
-                    break;
-                }
-            }
-        }
+        // ── TRƯỜNG HỢP 1: Có cả xã lẫn tỉnh → 2 vế bắt buộc ──
+        if (tenXa && tenTinh) {
+            // Vế 1: xã/phường phải có trong cột D
+            const xaInD = colD.split(",").some(xa => norm(xa).includes(tenXa) || tenXa.includes(norm(xa).trim()));
+            if (!xaInD) continue; // không khớp cột D → bỏ qua luôn
 
-        // 3. Tra theo tòa hiện tại (cột B)
-        if (!result3 && matchToaHienTai(toaHienTaiRaw, question)) {
-            result3 = buildCard([
-                ["Tòa án khu vực", toaHienTaiRaw],
+            // Vế 2: tỉnh/thành phải có trong cột E
+            const tinhInE = colE.includes(tenTinh);
+            if (!tinhInE) continue; // không khớp cột E → bỏ qua
+
+            // Cả 2 vế đều khớp → đây là kết quả đúng
+            // Tìm tên xã chính xác trong DS_XA để hiển thị
+            const tenXaHienThi = (danhSachXaRaw || "").split(",")
+                .map(x => x.trim())
+                .find(x => norm(x).includes(tenXa) || tenXa.includes(norm(x))) || tenXa;
+
+            results.push(buildCard([
+                ["Đơn vị hành chính", tenXaHienThi],
+                ["Thuộc thẩm quyền", toaHienTaiRaw],
+                ["Tỉnh/thành phố (cột E)", toaCuRaw],
                 ["Số lượng xã", soLuongXa],
-                ["Danh sách xã", danhSachXaRaw],
-                ["Các tòa trước đây", toaCuRaw]
-            ]);
+                ["Tòa án trước khi sáp nhập", toaCuRaw]
+            ]));
+            continue;
+        }
+
+        // ── TRƯỜNG HỢP 2: Chỉ hỏi tên xã/phường (không có tỉnh) ──
+        if (tenXa && !tenTinh) {
+            const matched = (danhSachXaRaw || "").split(",")
+                .map(x => x.trim())
+                .filter(x => norm(x).includes(tenXa) || tenXa.includes(norm(x)));
+            if (matched.length > 0) {
+                results.push(buildCard([
+                    ["Đơn vị hành chính", matched.join(", ")],
+                    ["Thuộc thẩm quyền", toaHienTaiRaw],
+                    ["Tòa án trước khi sáp nhập", toaCuRaw],
+                    ["Số lượng xã", soLuongXa]
+                ]));
+            }
+            continue;
+        }
+
+        // ── TRƯỜNG HỢP 3: Chỉ hỏi tên tỉnh / tòa cũ / tòa hiện tại ──
+        if (!tenXa) {
+            // Tìm theo tòa cũ (cột E)
+            if (tenTinh && colE.includes(tenTinh)) {
+                results.push(buildCard([
+                    ["Tòa án cũ", toaCuRaw],
+                    ["Nay thuộc thẩm quyền", toaHienTaiRaw],
+                    ["Số lượng xã", soLuongXa],
+                    ["Danh sách đơn vị", danhSachXaRaw]
+                ]));
+                continue;
+            }
+            // Tìm theo tên tòa cũ hoặc tòa hiện tại
+            if (matchToaCu(toaCuRaw, question)) {
+                results.push(buildCard([
+                    ["Tòa án cũ", toaCuRaw],
+                    ["Nay thuộc thẩm quyền", toaHienTaiRaw],
+                    ["Số lượng xã", soLuongXa],
+                    ["Danh sách đơn vị", danhSachXaRaw]
+                ]));
+            } else if (matchToaHienTai(toaHienTaiRaw, question)) {
+                results.push(buildCard([
+                    ["Tòa án khu vực", toaHienTaiRaw],
+                    ["Số lượng xã", soLuongXa],
+                    ["Danh sách xã", danhSachXaRaw],
+                    ["Các tòa trước đây", toaCuRaw]
+                ]));
+            }
         }
     }
 
-    // Trả kết quả theo thứ tự ưu tiên
-    return result1 || result2 || result3 || null;
+    return results;
 }
 
 /* ── Tra cứu vụ án ───────────────────────────────────── */
@@ -1146,7 +1196,7 @@ async function sendVuAn() {
 
 /* ── Send: Tòa án ────────────────────────────────────── */
 async function sendToa() {
-    const input    = document.getElementById("inputToa");
+    const input = document.getElementById("inputToa");
     const question = input.value.trim();
     if (!question) return;
     const w = document.querySelector("#panelToa .welcome-msg");
@@ -1154,136 +1204,19 @@ async function sendToa() {
     addMsg("chatBoxToa", question, "user");
     input.value = "";
     showTypingIn("chatBoxToa");
-
-    const apiKey = GEMINI_API_KEY;
-
     try {
-        // Nếu có API key → dùng Gemini AI
-        if (apiKey) {
-            const result = await searchToaWithAI(question, apiKey);
-            hideTypingIn("chatBoxToa");
-            addMsg("chatBoxToa", result, "bot", true);
+        const results = await searchToa(question);
+        hideTypingIn("chatBoxToa");
+        if (results && results.length > 0) {
+            results.forEach(r => addMsg("chatBoxToa", r, "bot", true));
         } else {
-            // Không có API key → fallback về tìm kiếm cũ
-            const result = await searchToa(question);
-            hideTypingIn("chatBoxToa");
-            if (result) {
-                addMsg("chatBoxToa", result, "bot", true);
-            } else {
-                addMsg("chatBoxToa",
-                    `Không tìm thấy. <em>Nhập Gemini API Key để hỏi bằng câu tự nhiên.</em>`, "bot", true);
-            }
+            addMsg("chatBoxToa", "Không tìm thấy thông tin phù hợp.", "bot");
         }
     } catch (err) {
         hideTypingIn("chatBoxToa");
-        addMsg("chatBoxToa", "⚠️ " + (err.message || "Lỗi kết nối. Kiểm tra API key hoặc mạng."), "bot");
+        addMsg("chatBoxToa", "⚠️ Lỗi kết nối dữ liệu.", "bot");
         console.error(err);
     }
-}
-
-/* ── Gemini AI search ────────────────────────────────── */
-async function searchToaWithAI(question, apiKey) {
-    // 1. Fetch dữ liệu sheet TOA
-    const rows = await fetchSheet(TOA_SHEET);
-
-    // 2. Chuyển dữ liệu thành text gọn để gửi cho AI
-    //    Format: "STT | Tòa hiện tại | Số xã | Danh sách xã | Tòa cũ"
-    const dataLines = rows
-        .filter(r => r.c[1]?.v)
-        .map(r => {
-            const toa    = r.c[1]?.v || "";
-            const soXa   = r.c[2]?.v || "";
-            const dsXa   = r.c[3]?.v || "";
-            const toaCu  = r.c[4]?.v || "";
-            return `TOA: ${toa} | SO_XA: ${soXa} | DS_XA: ${dsXa} | TOA_CU: ${toaCu}`;
-        })
-        .join("\n");
-
-    // 3. Tạo prompt
-    const prompt = `Bạn là hệ thống tra cứu thẩm quyền tòa án Việt Nam sau sáp nhập. Phân tích dữ liệu và trả lời CÂU HỎI bên dưới.
-
-=== CẤU TRÚC DỮ LIỆU ===
-Mỗi dòng gồm 4 trường, phân cách bằng " | ":
-  TOA     = Tên tòa án khu vực HIỆN TẠI (sau sáp nhập)
-  SO_XA   = Số lượng xã/phường/thị trấn thuộc thẩm quyền
-  DS_XA   = Danh sách tên từng xã/phường/thị trấn (cách nhau bởi dấu phẩy) — ĐÂY LÀ CỘT ĐỂ TRA XÃ/PHƯỜNG
-  TOA_CU  = Tên huyện/quận/thành phố CŨ kèm tỉnh — ĐÂY LÀ CỘT ĐỂ XÁC ĐỊNH TỈNH/THÀNH PHỐ
-
-=== QUY TẮC XỬ LÝ ===
-
-[Trường hợp A] Câu hỏi có CẢ tên xã/phường VÀ tỉnh/thành phố:
-  BƯỚC 1 — Quét DS_XA của TỪNG DÒNG: dòng nào có DS_XA chứa tên xã/phường đó? → Lập danh sách các dòng khớp.
-  BƯỚC 2 — Trong danh sách vừa lọc: dòng nào có TOA_CU chứa tên tỉnh/thành phố đó? → Đây là kết quả.
-  ⚠ CẢNH BÁO: Nếu bỏ qua Bước 1 và chỉ tìm theo tỉnh trong TOA_CU → SAI HOÀN TOÀN.
-  ⚠ CẢNH BÁO: Nếu chọn dòng chỉ khớp tỉnh mà DS_XA không có tên xã/phường → SAI.
-
-  VÍ DỤ ĐÚNG: Hỏi "phường Thống Nhất, tỉnh Hòa Bình cũ"
-    → Bước 1: Tìm dòng có DS_XA chứa "Thống Nhất" — có thể có nhiều dòng
-    → Bước 2: Trong đó tìm dòng có TOA_CU chứa "Hòa Bình" → Đó là kết quả đúng
-    → SAI nếu chọn dòng chỉ vì TOA_CU có "Hòa Bình" mà DS_XA không có "Thống Nhất"
-
-[Trường hợp B] Chỉ hỏi tên xã/phường (không có tỉnh):
-  → Tìm tất cả dòng có DS_XA chứa tên đó, trả về hết.
-
-[Trường hợp C] Hỏi tên tòa cũ / huyện cũ:
-  → Tìm trong TOA_CU.
-
-[Trường hợp D] Hỏi tên tòa khu vực hiện tại:
-  → Tìm trong TOA.
-
-LƯU Ý: Bỏ dấu và viết thường khi so sánh. "Hòa Bình"="hoa binh", "Thống Nhất"="thong nhat".
-
-=== DỮ LIỆU ===
-${dataLines}
-
-=== CÂU HỎI ===
-${question}
-
-=== ĐỊNH DẠNG TRẢ LỜI ===
-Chỉ trả về HTML thuần, không markdown, không giải thích bên ngoài.
-
-Nếu tìm thấy:
-<div>
-  <div class="field-label">TOÀ ÁN CÓ THẨM QUYỀN</div>
-  <div class="field-value" style="font-size:15px;font-weight:700;color:#0f2557">[Tên tòa từ trường TOA]</div>
-  <div class="field-label" style="margin-top:10px">ĐƠN VỊ HÀNH CHÍNH</div>
-  <div class="field-value">[Tên xã/phường/huyện được hỏi]</div>
-  <div class="field-label" style="margin-top:10px">SỐ ĐƠN VỊ QUẢN LÝ</div>
-  <div class="field-value">[SO_XA] xã/phường/thị trấn</div>
-  <div class="field-label" style="margin-top:10px">TÒA ÁN CŨ</div>
-  <div class="field-value">[TOA_CU]</div>
-  <div class="field-label" style="margin-top:10px">XÁC NHẬN</div>
-  <div class="field-value">[Ghi rõ: DS_XA của dòng này có "[tên xã]" và TOA_CU có "[tên tỉnh]"]</div>
-</div>
-
-Nếu không tìm thấy:
-<div class="field-value" style="color:#dc2626">Không tìm thấy. [Giải thích ngắn]</div>`
-    // 4. Gọi Gemini API
-    const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
-            })
-        }
-    );
-
-    if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error(err.error?.message || "Gemini API lỗi: " + resp.status);
-    }
-
-    const data = await resp.json();
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    // 5. Lấy phần HTML từ response (bỏ markdown code block nếu có)
-    const html = aiText.replace(/```html|```/g, "").trim();
-    return `<div style="font-size:11px;margin-bottom:8px;color:var(--text-light)">
-                <span class="ai-badge">✦ AI</span> Trả lời bởi Gemini
-            </div>${html}`;
 }
 
 /* ── Quick search ────────────────────────────────────── */
