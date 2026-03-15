@@ -1200,59 +1200,64 @@ async function searchToaWithAI(question, apiKey) {
         .join("\n");
 
     // 3. Tạo prompt
-    const prompt = `Bạn là hệ thống tra cứu thẩm quyền tòa án Việt Nam. Nhiệm vụ duy nhất là tìm đúng tòa án trong dữ liệu.
+    const prompt = `Bạn là hệ thống tra cứu thẩm quyền tòa án Việt Nam sau sáp nhập. Phân tích dữ liệu và trả lời CÂU HỎI bên dưới.
 
-CẤU TRÚC DỮ LIỆU (mỗi dòng là một tòa án):
-- TOA: Tên tòa án khu vực hiện tại (sau sáp nhập)
-- SO_XA: Số đơn vị hành chính cấp xã thuộc thẩm quyền
-- DS_XA: Danh sách TÊN XÃ/PHƯỜNG/THỊ TRẤN thuộc thẩm quyền
-- TOA_CU: Tên các tòa án/huyện/quận cũ trước khi sáp nhập — thường ghi kèm tên tỉnh/thành phố
+=== CẤU TRÚC DỮ LIỆU ===
+Mỗi dòng gồm 4 trường, phân cách bằng " | ":
+  TOA     = Tên tòa án khu vực HIỆN TẠI (sau sáp nhập)
+  SO_XA   = Số lượng xã/phường/thị trấn thuộc thẩm quyền
+  DS_XA   = Danh sách tên từng xã/phường/thị trấn (cách nhau bởi dấu phẩy) — ĐÂY LÀ CỘT ĐỂ TRA XÃ/PHƯỜNG
+  TOA_CU  = Tên huyện/quận/thành phố CŨ kèm tỉnh — ĐÂY LÀ CỘT ĐỂ XÁC ĐỊNH TỈNH/THÀNH PHỐ
 
-QUY TẮC TRA CỨU BẮT BUỘC - PHẢI TUÂN THỦ TUYỆT ĐỐI:
+=== QUY TẮC XỬ LÝ ===
 
-TRƯỜNG HỢP 1 - Hỏi "xã/phường X thuộc tỉnh/thành Y":
-  → Bước 1: Tìm các hàng có DS_XA chứa tên "X"
-  → Bước 2: Trong các hàng đó, tìm hàng có TOA_CU chứa tên tỉnh/thành "Y"
-  → KẾT QUẢ: Chỉ hàng thỏa mãn ĐỒNG THỜI cả DS_XA có X VÀ TOA_CU có Y
-  → KHÔNG được chọn hàng chỉ khớp một trong hai điều kiện
-  → Ví dụ: "phường Thống Nhất, tỉnh Hòa Bình" → DS_XA phải có "Thống Nhất" VÀ TOA_CU phải có "Hòa Bình"
+[Trường hợp A] Câu hỏi có CẢ tên xã/phường VÀ tỉnh/thành phố:
+  BƯỚC 1 — Quét DS_XA của TỪNG DÒNG: dòng nào có DS_XA chứa tên xã/phường đó? → Lập danh sách các dòng khớp.
+  BƯỚC 2 — Trong danh sách vừa lọc: dòng nào có TOA_CU chứa tên tỉnh/thành phố đó? → Đây là kết quả.
+  ⚠ CẢNH BÁO: Nếu bỏ qua Bước 1 và chỉ tìm theo tỉnh trong TOA_CU → SAI HOÀN TOÀN.
+  ⚠ CẢNH BÁO: Nếu chọn dòng chỉ khớp tỉnh mà DS_XA không có tên xã/phường → SAI.
 
-TRƯỜNG HỢP 2 - Hỏi chỉ tên xã/phường (không có tỉnh):
-  → Tìm trong DS_XA, liệt kê TẤT CẢ kết quả khớp
+  VÍ DỤ ĐÚNG: Hỏi "phường Thống Nhất, tỉnh Hòa Bình cũ"
+    → Bước 1: Tìm dòng có DS_XA chứa "Thống Nhất" — có thể có nhiều dòng
+    → Bước 2: Trong đó tìm dòng có TOA_CU chứa "Hòa Bình" → Đó là kết quả đúng
+    → SAI nếu chọn dòng chỉ vì TOA_CU có "Hòa Bình" mà DS_XA không có "Thống Nhất"
 
-TRƯỜNG HỢP 3 - Hỏi tên tòa cũ / tên huyện cũ:
-  → Tìm trong TOA_CU
+[Trường hợp B] Chỉ hỏi tên xã/phường (không có tỉnh):
+  → Tìm tất cả dòng có DS_XA chứa tên đó, trả về hết.
 
-TRƯỜNG HỢP 4 - Hỏi tên tòa khu vực hiện tại:
-  → Tìm trong TOA
+[Trường hợp C] Hỏi tên tòa cũ / huyện cũ:
+  → Tìm trong TOA_CU.
 
-LƯU Ý: So sánh không phân biệt dấu và hoa thường.
-Ví dụ: "Vĩnh Thông" = "vinh thong", "Hòa Bình" = "hoa binh", "Thống Nhất" = "thong nhat"
+[Trường hợp D] Hỏi tên tòa khu vực hiện tại:
+  → Tìm trong TOA.
 
-DỮ LIỆU:
-\${dataLines}
+LƯU Ý: Bỏ dấu và viết thường khi so sánh. "Hòa Bình"="hoa binh", "Thống Nhất"="thong nhat".
 
-CÂU HỎI: \${question}
+=== DỮ LIỆU ===
+${dataLines}
 
-Trả lời bằng HTML thuần (không markdown, không giải thích ngoài HTML):
+=== CÂU HỎI ===
+${question}
+
+=== ĐỊNH DẠNG TRẢ LỜI ===
+Chỉ trả về HTML thuần, không markdown, không giải thích bên ngoài.
 
 Nếu tìm thấy:
 <div>
   <div class="field-label">TOÀ ÁN CÓ THẨM QUYỀN</div>
-  <div class="field-value" style="font-size:15px;font-weight:700;color:#0f2557">[Tên tòa từ cột TOA]</div>
+  <div class="field-value" style="font-size:15px;font-weight:700;color:#0f2557">[Tên tòa từ trường TOA]</div>
   <div class="field-label" style="margin-top:10px">ĐƠN VỊ HÀNH CHÍNH</div>
   <div class="field-value">[Tên xã/phường/huyện được hỏi]</div>
   <div class="field-label" style="margin-top:10px">SỐ ĐƠN VỊ QUẢN LÝ</div>
   <div class="field-value">[SO_XA] xã/phường/thị trấn</div>
-  <div class="field-label" style="margin-top:10px">TÒA ÁN CŨ (TRƯỚC SÁP NHẬP)</div>
+  <div class="field-label" style="margin-top:10px">TÒA ÁN CŨ</div>
   <div class="field-value">[TOA_CU]</div>
-  <div class="field-label" style="margin-top:10px">LÝ DO XÁC ĐỊNH</div>
-  <div class="field-value">[Giải thích: tìm thấy X trong DS_XA và Y trong TOA_CU của hàng này]</div>
+  <div class="field-label" style="margin-top:10px">XÁC NHẬN</div>
+  <div class="field-value">[Ghi rõ: DS_XA của dòng này có "[tên xã]" và TOA_CU có "[tên tỉnh]"]</div>
 </div>
 
 Nếu không tìm thấy:
-<div class="field-value" style="color:#dc2626">Không tìm thấy dữ liệu phù hợp. [Lý do ngắn]</div>`
-
+<div class="field-value" style="color:#dc2626">Không tìm thấy. [Giải thích ngắn]</div>`
     // 4. Gọi Gemini API
     const resp = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
