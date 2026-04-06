@@ -525,16 +525,42 @@ function st(type, msg) {
 // ── parse ngày gviz ───────────────────────────────────────────────────
 function parseGvizDate(cell) {
   if (!cell || cell.v === null || cell.v === undefined || cell.v === '') return null;
+
+  // 1. Gviz Date string: "Date(2024,4,17)"
   if (typeof cell.v === 'string') {
     const m = cell.v.match(/^Date\((\d+),(\d+),(\d+)\)$/);
     if (m) return new Date(+m[1], +m[2], +m[3]);
   }
+
+  // 2. JS Date object
   if (cell.v instanceof Date) return cell.v;
-  const fv = cell.f || '';
+
+  // 3. Formatted value cell.f — thường là "17/05/2024" hoặc "17-05-2024"
+  const fv = String(cell.f || '').trim();
   if (fv) {
     const m2 = fv.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (m2) return new Date(+m2[3], +m2[2]-1, +m2[1]);
+    // yyyy-mm-dd
+    const m3 = fv.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m3) return new Date(+m3[1], +m3[2]-1, +m3[3]);
   }
+
+  // 4. cell.v là string dạng ngày (text cell nhập tay)
+  if (typeof cell.v === 'string') {
+    const sv = cell.v.trim();
+    const m4 = sv.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m4) return new Date(+m4[3], +m4[2]-1, +m4[1]);
+    const m5 = sv.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m5) return new Date(+m5[1], +m5[2]-1, +m5[3]);
+  }
+
+  // 5. Excel/Sheets serial number (số nguyên, tính từ 30/12/1899)
+  if (typeof cell.v === 'number' && cell.v > 1) {
+    const epoch = new Date(1899, 11, 30);
+    epoch.setDate(epoch.getDate() + Math.floor(cell.v));
+    return epoch;
+  }
+
   return null;
 }
 function mn(d) {
@@ -647,7 +673,8 @@ function procDS(rows, X, Y, grp) {
     const isKhPhuc = isKhoiPhuc(colV);
 
     if (!B) {
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B'});
+      const rawB = c[1] ? JSON.stringify(c[1]).slice(0,60) : '(rỗng)';
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB, tp,khangCao:'',colV});
       continue;
     }
 
