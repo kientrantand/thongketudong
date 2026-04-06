@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thống kê án tòa</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{--navy:#0d1b2a;--blue:#1b4f72;--accent:#e8a83e;--accent2:#2ecc9e;--surface:#f4f6fb;--card:#fff;--border:#dde3ef;--text:#1a2332;--muted:#7a8ba3;--danger:#e74c3c;--success:#27ae60;--warning:#e67e22}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -116,6 +117,7 @@ table.gloai-tbl .cell-btn.zero:hover{background:none}
 .log-filter-btn[data-f="cu"].active{background:var(--accent);border-color:var(--accent);color:var(--navy)}
 .log-filter-btn[data-f="gq"].active{background:var(--success);border-color:var(--success)}
 .log-filter-btn[data-f="tdc"].active{background:var(--warning);border-color:var(--warning);color:var(--navy)}
+.log-filter-btn[data-f="ctq"].active{background:#1b4f72;border-color:#1b4f72;color:#fff}
 .log-filter-btn[data-f="skip"].active{background:var(--muted);border-color:var(--muted)}
 .log-filter-btn[data-f="all"].active{background:var(--navy);border-color:var(--navy)}
 .log-export-btn{margin-left:auto;padding:6px 14px;border-radius:8px;border:none;background:var(--blue);color:#fff;font-size:.78rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s}
@@ -134,9 +136,36 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
 .ltag.cu{background:#fff3d6;color:#8a5200}
 .ltag.gq{background:#d4f7e5;color:#1a6b40}
 .ltag.tdc{background:#ffe9cc;color:#7a3c00}
+.ltag.ctq{background:#e0f0ff;color:#1a4a7a}
 .ltag.skip{background:#eeeeee;color:#666}
 .ltag.none{background:#ffeaea;color:#a00}
 .row-skip td{opacity:.45}
+/* ── BIỂU ĐỒ THẨM PHÁN ── */
+#chartCard{display:none}
+.chart-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.chart-tab{padding:7px 16px;border-radius:20px;border:2px solid var(--border);background:var(--surface);font-size:.78rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;color:var(--muted)}
+.chart-tab.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.chart-pane{display:none}.chart-pane.active{display:block}
+.chart-wrap{position:relative;width:100%;overflow-x:auto}
+.chart-wrap canvas{max-width:100%}
+.chart-note{font-size:.73rem;color:var(--muted);margin-top:8px;font-style:italic}
+.tp-detail-wrap{margin-top:18px}
+.tp-detail-title{font-size:.78rem;font-weight:700;color:var(--navy);margin-bottom:10px}
+.tp-select-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.tp-select-row label{font-size:.78rem;font-weight:600;color:var(--blue)}
+.tp-select{padding:7px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:.82rem;font-family:inherit;outline:none;background:var(--surface);color:var(--text);min-width:180px}
+.tp-select:focus{border-color:var(--blue)}
+.tp-gq-type-chips{display:flex;flex-wrap:wrap;gap:6px}
+.tp-gq-chip{padding:4px 11px;border-radius:14px;border:2px solid var(--border);background:var(--surface);font-size:.74rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;color:var(--muted)}
+.tp-gq-chip.on{color:#fff}
+.tp-gq-chip[data-la="ds"].on{background:#1b4f72;border-color:#1b4f72}
+.tp-gq-chip[data-la="hngd"].on{background:#8e44ad;border-color:#8e44ad}
+.tp-gq-chip[data-la="kdtm"].on{background:#16a085;border-color:#16a085}
+.tp-gq-chip[data-la="ld"].on{background:#d35400;border-color:#d35400}
+.tp-gq-chip[data-la="hc"].on{background:#27ae60;border-color:#27ae60}
+.tp-gq-chip[data-la="hs"].on{background:#c0392b;border-color:#c0392b}
+.tp-gq-chip[data-la="xlhc"].on{background:#2ecc9e;border-color:#2ecc9e;color:var(--navy)}
+.tp-gq-chip[data-la="all"].on{background:var(--navy);border-color:var(--navy)}
 </style>
 </head>
 <body>
@@ -200,6 +229,65 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
       </div>
       <div id="gloaiBody"></div>
     </div>
+
+    <!-- BIỂU ĐỒ THẨM PHÁN -->
+    <div class="card" id="chartCard">
+      <div class="sec-title" style="justify-content:space-between">
+        <span>📈 Biểu đồ thống kê theo Thẩm phán</span>
+        <button onclick="toggleChartCard()" id="chartToggleBtn" style="padding:5px 14px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);font-size:.78rem;font-family:inherit;font-weight:600;cursor:pointer;color:var(--blue)">▼ Ẩn biểu đồ</button>
+      </div>
+      <div id="chartCardBody">
+        <div class="chart-tabs">
+          <button class="chart-tab active" data-tab="tab-tl" onclick="switchChartTab('tab-tl')">📋 Thụ lý &amp; Giải quyết</button>
+          <button class="chart-tab" data-tab="tab-loai" onclick="switchChartTab('tab-loai')">🗂 Phân loại án</button>
+          <button class="chart-tab" data-tab="tab-gq" onclick="switchChartTab('tab-gq')">⚖️ Hình thức giải quyết</button>
+        </div>
+
+        <!-- Tab 1: Thụ lý & Giải quyết -->
+        <div class="chart-pane active" id="tab-tl">
+          <div class="chart-wrap" style="height:360px"><canvas id="chartTL"></canvas></div>
+          <p class="chart-note">📌 Biểu đồ nhóm: cột xanh dương = thụ lý mới trong kỳ, cột xanh lá = đã giải quyết. Nhấn tên trong legend để ẩn/hiện.</p>
+        </div>
+
+        <!-- Tab 2: Phân loại án -->
+        <div class="chart-pane" id="tab-loai">
+          <div class="tp-select-row">
+            <label>Chọn Thẩm phán:</label>
+            <select class="tp-select" id="tpSelectLoai" onchange="renderChartLoai()">
+              <option value="__all__">— Tất cả Thẩm phán —</option>
+            </select>
+          </div>
+          <div class="chart-wrap" style="height:340px"><canvas id="chartLoai"></canvas></div>
+          <p class="chart-note">📌 Biểu đồ tròn phân loại án theo loại: DS, HNGĐ, KDTM, LĐ, HC, HS, XLHC.</p>
+        </div>
+
+        <!-- Tab 3: Hình thức giải quyết chi tiết -->
+        <div class="chart-pane" id="tab-gq">
+          <div class="tp-select-row" style="gap:14px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px">
+              <label>Thẩm phán:</label>
+              <select class="tp-select" id="tpSelectGQ" onchange="renderChartGQ()">
+                <option value="__all__">— Tất cả —</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <label>Loại án:</label>
+              <div class="tp-gq-type-chips" id="tpGQChips">
+                <button class="tp-gq-chip on" data-la="all" onclick="tpGQChipClick('all')">Tất cả</button>
+                <button class="tp-gq-chip" data-la="ds" onclick="tpGQChipClick('ds')">Dân sự</button>
+                <button class="tp-gq-chip" data-la="hngd" onclick="tpGQChipClick('hngd')">HNGĐ</button>
+                <button class="tp-gq-chip" data-la="kdtm" onclick="tpGQChipClick('kdtm')">KDTM</button>
+                <button class="tp-gq-chip" data-la="ld" onclick="tpGQChipClick('ld')">Lao động</button>
+                <button class="tp-gq-chip" data-la="hc" onclick="tpGQChipClick('hc')">Hành chính</button>
+                <button class="tp-gq-chip" data-la="hs" onclick="tpGQChipClick('hs')">Hình sự</button>
+              </div>
+            </div>
+          </div>
+          <div class="chart-wrap" style="height:400px"><canvas id="chartGQ"></canvas></div>
+          <p class="chart-note">📌 Biểu đồ thanh ngang: hình thức giải quyết của từng Thẩm phán (công nhận, xét xử, đình chỉ, ...). Chỉ tính vụ có ngày giải quyết trong kỳ.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- DRILL MODAL -->
@@ -223,6 +311,7 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
       <button class="log-filter-btn" data-f="cu" onclick="setLogFilter('cu')">🟡 TL cũ</button>
       <button class="log-filter-btn" data-f="gq" onclick="setLogFilter('gq')">🟢 Giải quyết</button>
       <button class="log-filter-btn" data-f="tdc" onclick="setLogFilter('tdc')">🟠 Tạm đình chỉ</button>
+      <button class="log-filter-btn" data-f="ctq" onclick="setLogFilter('ctq')">🔷 Chuyển thẩm quyền</button>
       <button class="log-filter-btn" data-f="skip" onclick="setLogFilter('skip')">⚫ Bỏ qua</button>
       <span class="log-count" id="logCount"></span>
       <button class="log-export-btn" onclick="exportLogCSV()">⬇ Xuất CSV</button>
@@ -237,8 +326,11 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
             <th>Mã / Tên vụ</th>
             <th>Ngày thụ lý (B)</th>
             <th>Ngày GQ (F)</th>
-            <th>Ghi chú (G)</th>
+            <th>Kết quả GQ (G)</th>
             <th>Loại án (I)</th>
+            <th>Thẩm phán</th>
+            <th>Kháng cáo/KN</th>
+            <th>Cột V</th>
             <th>Nhãn đếm</th>
           </tr>
         </thead>
@@ -490,6 +582,7 @@ const GMATCH = {
 let logEntries = [];   // toàn bộ entries từ lần chạy gần nhất
 let logFilter  = 'all';
 let gLoaiData  = [];   // [{loaiAn, loaiGQ, ma, row, B, F, gStr}] cho bảng thống kê cột G
+let tpData     = [];   // [{tp, src, loaiAn, loaiGQ, B, F, tags}] cho biểu đồ Thẩm phán
 
 // ── phân loại cột G → nhóm hình thức giải quyết ──────────────────────
 function classifyGQ(gStr) {
@@ -525,13 +618,15 @@ const GQ_LABEL = {
 };
 
 // ── xử lý sheet ───────────────────────────────────────────────────────
-// DS: B=idx1, F=idx5, G=idx6, I=idx8 — không tiêu đề
+// DATA_DS_EXTEND (dòng 0 là tiêu đề, bắt đầu i=1):
+//   B=idx1(ngày TL), E=idx4(số GQ), F=idx5(ngày GQ), G=idx6(kết quả GQ),
+//   H=idx7(kháng cáo/KN), I=idx8(loại án), K=idx10(Thẩm phán), V=idx21(TĐC/CTQ)
 function procDS(rows, X, Y, grp) {
   let cu=0, moi=0, gq=0, tdc=0;
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const I = cellStr(c[8]);
-    const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
+    const I        = cellStr(c[8]);   // Loại án (cột I)
+    const maVu     = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
     if (HGDT.test(I)) {
       logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'HGĐT'});
       continue;
@@ -540,81 +635,121 @@ function procDS(rows, X, Y, grp) {
       logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'Lọc nhóm'});
       continue;
     }}
-    const B    = mn(parseGvizDate(c[1]));
-    const F    = mn(parseGvizDate(c[5]));
-    const gStr = cellStr(c[6]);
-    const skDS = (gStr||'').trim().toLowerCase().includes('chuyển thẩm quyền');
+    const B         = mn(parseGvizDate(c[1]));   // cột B - ngày thụ lý
+    const F         = mn(parseGvizDate(c[5]));   // cột F - ngày giải quyết
+    const gStr      = cellStr(c[6]);              // cột G - kết quả GQ
+    const khangCao  = cellStr(c[7]);              // cột H - kháng cáo/kháng nghị
+    const tp        = cellStr(c[10]) || '(Chưa phân công)'; // cột K - Thẩm phán
+    // Cột V (index 21): nguồn chính xác định TĐC / phục hồi / Chuyển thẩm quyền
+    const colV = cellStr(c[21]);
+    const isCTQ    = /chuyển thẩm quyền/i.test(colV);
+    const isTdcV   = /tạm đình chỉ/i.test(colV) && !isKhoiPhuc(colV);
+    const isKhPhuc = isKhoiPhuc(colV);
+
     if (!B) {
       logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B'});
       continue;
     }
 
-    const jStr  = cellStr(c[9]);  // Cột J (DATA_DS_EXTEND): "khôi phục"/"phục hồi" → bỏ qua tạm đình chỉ
-    const isTdc = isTDC(gStr) && B <= Y && !isKhoiPhuc(jStr);
     const tags = [];
 
-    if (isTdc) {
-      // Dòng tạm đình chỉ: chỉ đếm tdc, bỏ qua moi/cu/gq hoàn toàn
+    if (isCTQ) {
+      tags.push('ctq');
+    } else if (isTdcV) {
       tdc++; tags.push('tdc');
     } else {
-      if (inR(B, X, Y))                          { moi++; tags.push('moi'); }
-      if (B < X && !skDS && (!F || inR(F, X, Y))){ cu++;  tags.push('cu');  }
-      if (!skDS && F && inR(F, X, Y))            { gq++;  tags.push('gq');  }
+      if (inR(B, X, Y))                  { moi++; tags.push('moi'); }
+      if (B < X && (!F || inR(F, X, Y))) { cu++;  tags.push('cu');  }
+      if (F && inR(F, X, Y))             { gq++;  tags.push('gq');  }
+      if (isKhPhuc) tags.push('khphuc');
     }
     if (tags.length === 0) tags.push('none');
-    logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,tags,skipReason:''});
+    logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,khangCao,tp,tags,skipReason:'',colV});
 
-    // Thu thập cho bảng thống kê cột G (chỉ vụ có ngày GQ trong kỳ, không tính TĐC)
-    if (F && inR(F, X, Y) && !isTdc) {
+    // Thu thập tpData — Thẩm phán cột K (idx10)
+    if (B && !isCTQ) {
+      tpData.push({tp, src:'DS', loaiAn: classifyLoaiAn(I), loaiGQ: F && inR(F,X,Y) && !isTdcV ? classifyGQ(gStr) : null, B, F, tags: tags.slice()});
+    }
+
+    // Thu thập bảng thống kê cột G (vụ có ngày GQ trong kỳ, không tính TĐC/CTQ)
+    if (F && inR(F, X, Y) && !isTdcV && !isCTQ) {
       gLoaiData.push({loaiAn: classifyLoaiAn(I), loaiGQ: classifyGQ(gStr), ma:maVu, row:i+1, B, F, gStr, loai:I});
     }
   }
   return { cu, moi, gq, tdc, ton: cu+moi-gq };
 }
 
-// HS: B=idx1, F=idx5 (ngày xét xử), G=idx6 (ghi chú - Tạm đình chỉ...)
+// DATA_HS (không tiêu đề, lọc A→Y):
+//   B=idx1(ngày TL), H=idx7(số GQ), I=idx8(ngày GQ), N=idx13(Thẩm phán)
+//   Q=idx16(kháng cáo), R=idx17(kháng nghị), X=idx23(Tạm đình chỉ)
 function procHS(rows, X, Y) {
   let cu=0, moi=0, gq=0, tdc=0;
   for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
-    const B  = mn(parseGvizDate(c[1]));
-    const F  = mn(parseGvizDate(c[5]));
-    const gStr = cellStr(c[6]);
-    const sk = isSkip(gStr);
+    const maVu     = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
+    const B        = mn(parseGvizDate(c[1]));    // cột B - ngày thụ lý
+    const F        = mn(parseGvizDate(c[8]));    // cột I - ngày giải quyết
+    const soGQ     = cellStr(c[7]);              // cột H - số giải quyết
+    const tp       = cellStr(c[13]) || '(Chưa phân công)'; // cột N - Thẩm phán
+    const khangCao = cellStr(c[16]);             // cột Q - kháng cáo
+    const khangNghi= cellStr(c[17]);             // cột R - kháng nghị
+    const colX     = cellStr(c[23]);             // cột X - Tạm đình chỉ
+    // Ghép kháng cáo + kháng nghị thành 1 chuỗi hiển thị
+    const khangStr = [khangCao ? 'KC: '+khangCao : '', khangNghi ? 'KN: '+khangNghi : ''].filter(Boolean).join(' | ');
+
+    // TĐC dựa vào cột X, skip dựa vào cột X
+    const isTdcHS  = isTDC(colX) && !isKhoiPhuc(colX);
+    const isCTQ_HS = /chuyển thẩm quyền/i.test(colX);
+    const sk       = isTdcHS || isCTQ_HS;
+
     if (!B) {
-      logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr,loai:'',tags:['skip'],skipReason:'Không có ngày B'});
+      logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr:colX,loai:'',tags:['skip'],skipReason:'Không có ngày B',tp,khangCao:khangStr,colV:colX});
       continue;
     }
     const tags = [];
-    if (inR(B, X, Y))                              { moi++; tags.push('moi'); }
-    if (B < X && !sk && (!F || inR(F, X, Y)))      { cu++;  tags.push('cu');  }
-    if (!sk && F && inR(F, X, Y))                  { gq++;  tags.push('gq');  }
-    if (isTDC(gStr) && B <= Y && !isKhoiPhuc(gStr)) { tdc++; tags.push('tdc'); }
+    if (isCTQ_HS) {
+      tags.push('ctq');
+    } else if (isTdcHS) {
+      tdc++; tags.push('tdc');
+    } else {
+      if (inR(B, X, Y))                         { moi++; tags.push('moi'); }
+      if (B < X && (!F || inR(F, X, Y)))        { cu++;  tags.push('cu');  }
+      if (F && inR(F, X, Y))                    { gq++;  tags.push('gq');  }
+    }
     if (tags.length === 0) tags.push('none');
-    logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr,loai:'',tags,skipReason:''});
+    logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr:soGQ,loai:'Hình sự',soGQ,tp,khangCao:khangStr,colV:colX,tags,skipReason:''});
+    // Thu thập tpData HS — Thẩm phán cột N (idx13)
+    if (B && !isCTQ_HS) {
+      tpData.push({tp, src:'HS', loaiAn:'hs', loaiGQ: F && inR(F,X,Y) && !isTdcHS ? 'xx' : null, B, F, tags: tags.slice()});
+    }
   }
   return { cu, moi, gq, tdc, ton: cu+moi-gq };
 }
 
-// XLHC: B=idx1, G=idx6 (ngày giải quyết) — không có Tạm đình chỉ
+// DATA_XLHC (không tiêu đề):
+//   B=idx1(ngày TL), E=idx4(Thẩm phán), G=idx6(ngày giải quyết)
 function procXLHC(rows, X, Y) {
   let cu=0, moi=0, gq=0;
   for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
     const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
-    const B = mn(parseGvizDate(c[1]));
-    const G = mn(parseGvizDate(c[6]));
+    const B    = mn(parseGvizDate(c[1]));   // cột B - ngày thụ lý
+    const G    = mn(parseGvizDate(c[6]));   // cột G - ngày giải quyết
+    const tp   = cellStr(c[4]) || '(Chưa phân công)'; // cột E - Thẩm phán
     if (!B) {
       logEntries.push({src:'XLHC',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:'',tags:['skip'],skipReason:'Không có ngày B'});
       continue;
     }
     const tags = [];
-    if (inR(B, X, Y))                   { moi++; tags.push('moi'); }
-    if (B < X && (!G || inR(G, X, Y)))  { cu++;  tags.push('cu');  }
-    if (G && inR(G, X, Y))              { gq++;  tags.push('gq');  }
+    if (inR(B, X, Y))                  { moi++; tags.push('moi'); }
+    if (B < X && (!G || inR(G, X, Y))) { cu++;  tags.push('cu');  }
+    if (G && inR(G, X, Y))             { gq++;  tags.push('gq');  }
     if (tags.length === 0) tags.push('none');
-    logEntries.push({src:'XLHC',row:i+1,ma:maVu,B,F:G,gStr:'',loai:'',tags,skipReason:''});
+    logEntries.push({src:'XLHC',row:i+1,ma:maVu,B,F:G,gStr:'',loai:'',tp,tags,skipReason:''});
+    // Thu thập tpData XLHC — Thẩm phán cột E (idx4)
+    if (B) {
+      tpData.push({tp, src:'XLHC', loaiAn:'xlhc', loaiGQ: G && inR(G,X,Y) ? 'xx' : null, B, F:G, tags: tags.slice()});
+    }
   }
   return { cu, moi, gq, tdc: 0, ton: cu+moi-gq };
 }
@@ -635,6 +770,7 @@ async function run() {
   document.getElementById('logPanel').style.display = 'none';
   logEntries = [];   // reset log
   gLoaiData  = [];   // reset bảng cột G
+  tpData     = [];   // reset biểu đồ TP
 
   const res = {};
   let totalRows = 0;
@@ -687,6 +823,7 @@ async function run() {
 
   document.getElementById('results').style.display = 'block';
   renderGloai();
+  renderCharts();
 
   // Hiển thị log
   logFilter = 'all';
@@ -706,14 +843,19 @@ function box(cls, label, val) {
 }
 
 // ── LOG helpers ───────────────────────────────────────────────────────
-const TAG_LABEL = {moi:'TL mới', cu:'TL cũ', gq:'Giải quyết', tdc:'Tạm đình chỉ', skip:'Bỏ qua', none:'Không đếm'};
+const TAG_LABEL = {moi:'TL mới', cu:'TL cũ', gq:'Giải quyết', tdc:'Tạm đình chỉ', ctq:'Chuyển thẩm quyền', khphuc:'Phục hồi', skip:'Bỏ qua', none:'Không đếm'};
 const SRC_LABEL = {DS:'<span class="tag tds">DS</span>', HS:'<span class="tag ths">HS</span>', XLHC:'<span class="tag thc">XLHC</span>'};
 
 function fmtD(d) { return d ? fmtDate(d) : '<span style="color:#ccc">—</span>'; }
 
 function makeTags(e) {
   if (e.skipReason) return '<span class="ltag skip">⛔ Bỏ qua: '+e.skipReason+'</span>';
-  return e.tags.map(t => '<span class="ltag '+t+'">'+TAG_LABEL[t]+'</span>').join(' ');
+  return e.tags.map(t => {
+    const cls = t === 'ctq' ? 'ctq' : t === 'khphuc' ? 'tdc' : t;
+    const label = TAG_LABEL[t] || t;
+    const icon = t === 'ctq' ? '🔷 ' : t === 'khphuc' ? '♻️ ' : '';
+    return '<span class="ltag '+cls+'">'+icon+label+'</span>';
+  }).join(' ');
 }
 
 function setLogFilter(f) {
@@ -735,7 +877,7 @@ function renderLogTable() {
     }
     // filter by search
     if (q) {
-      const haystack = [e.ma, e.src, e.loai, e.gStr, e.skipReason].join(' ').toLowerCase();
+      const haystack = [e.ma, e.src, e.loai, e.gStr, e.skipReason, e.tp||'', e.khangCao||''].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -752,14 +894,17 @@ function renderLogTable() {
       +'<td style="max-width:200px;word-break:break-word">'+escH(e.ma)+'</td>'
       +'<td class="mono">'+fmtD(e.B)+'</td>'
       +'<td class="mono">'+fmtD(e.F)+'</td>'
-      +'<td style="max-width:180px;word-break:break-word;font-size:.75rem">'+escH(e.gStr||'—')+'</td>'
-      +'<td style="max-width:160px;word-break:break-word;font-size:.75rem">'+escH(e.loai||'—')+'</td>'
+      +'<td style="max-width:160px;word-break:break-word;font-size:.75rem">'+escH(e.gStr||'—')+'</td>'
+      +'<td style="max-width:130px;word-break:break-word;font-size:.75rem">'+escH(e.loai||'—')+'</td>'
+      +'<td style="max-width:130px;word-break:break-word;font-size:.75rem;font-weight:600;color:var(--blue)">'+escH(e.tp||'—')+'</td>'
+      +'<td style="max-width:110px;word-break:break-word;font-size:.73rem">'+escH(e.khangCao||'—')+'</td>'
+      +'<td style="max-width:120px;word-break:break-word;font-size:.75rem">'+escH(e.colV||'—')+'</td>'
       +'<td>'+makeTags(e)+'</td>'
       +'</tr>';
   }).join('');
 
   document.getElementById('logTbody').innerHTML = rows ||
-    '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">Không có dòng nào phù hợp</td></tr>';
+    '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">Không có dòng nào phù hợp</td></tr>';
 
   if (filtered.length > 2000) {
     document.getElementById('logCount').textContent += ' (hiển thị 2000 đầu)';
@@ -779,14 +924,14 @@ function exportLogCSV() {
       if (logFilter !== 'skip' && !e.tags.includes(logFilter)) return false;
     }
     if (q) {
-      const h = [e.ma, e.src, e.loai, e.gStr, e.skipReason].join(' ').toLowerCase();
+      const h = [e.ma, e.src, e.loai, e.gStr, e.skipReason, e.tp||'', e.khangCao||''].join(' ').toLowerCase();
       if (!h.includes(q)) return false;
     }
     return true;
   });
 
   const BOM = '\uFEFF';
-  const header = ['#','Nguồn','Dòng GS','Mã / Tên vụ','Ngày thụ lý (B)','Ngày GQ (F)','Ghi chú (G)','Loại án (I)','Nhãn đếm'];
+  const header = ['#','Nguồn','Dòng GS','Mã / Tên vụ','Ngày thụ lý (B)','Ngày GQ (F)','Kết quả GQ (G)','Loại án (I)','Thẩm phán','Kháng cáo/KN','Cột V','Nhãn đếm'];
   const lines = [header.join(',')];
   filtered.forEach((e, i) => {
     const tagStr = e.skipReason ? ('Bỏ qua: '+e.skipReason) : e.tags.map(t=>TAG_LABEL[t]).join(' | ');
@@ -795,8 +940,11 @@ function exportLogCSV() {
       '"'+String(e.ma).replace(/"/g,'""')+'"',
       e.B ? fmtDate(e.B) : '',
       e.F ? fmtDate(e.F) : '',
-      '"'+String(e.gStr).replace(/"/g,'""')+'"',
-      '"'+String(e.loai).replace(/"/g,'""')+'"',
+      '"'+String(e.gStr||'').replace(/"/g,'""')+'"',
+      '"'+String(e.loai||'').replace(/"/g,'""')+'"',
+      '"'+String(e.tp||'').replace(/"/g,'""')+'"',
+      '"'+String(e.khangCao||'').replace(/"/g,'""')+'"',
+      '"'+String(e.colV||'').replace(/"/g,'""')+'"',
       '"'+tagStr+'"'
     ].join(','));
   });
@@ -914,5 +1062,278 @@ function openDrill(la, gq) {
 function closeDrill() {
   document.getElementById('drillModal').classList.remove('show');
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrill(); });
+// ══════════════════════════════════════════════
+// BIỂU ĐỒ THẨM PHÁN
+// ══════════════════════════════════════════════
+let chartTLInst = null, chartLoaiInst = null, chartGQInst = null;
+let tpGQSelLoai = 'all';
+let chartCardVisible = true;
+
+// Bảng màu cố định cho các loại án
+const LOAI_COLORS = {
+  ds    : {bg:'rgba(27,79,114,0.75)',   bd:'#1b4f72'},
+  vds   : {bg:'rgba(52,120,170,0.75)',  bd:'#3478aa'},
+  hngd  : {bg:'rgba(142,68,173,0.75)', bd:'#8e44ad'},
+  vhngd : {bg:'rgba(175,122,197,0.75)',bd:'#af7ac5'},
+  kdtm  : {bg:'rgba(22,160,133,0.75)', bd:'#16a085'},
+  ld    : {bg:'rgba(211,84,0,0.75)',    bd:'#d35400'},
+  hc    : {bg:'rgba(39,174,96,0.75)',   bd:'#27ae60'},
+  hs    : {bg:'rgba(192,57,43,0.75)',   bd:'#c0392b'},
+  xlhc  : {bg:'rgba(46,204,158,0.75)', bd:'#2ecc9e'},
+  khac  : {bg:'rgba(127,140,141,0.75)',bd:'#7f8c8d'},
+};
+const GQ_COLORS = {
+  cntn  : {bg:'rgba(27,79,114,0.8)',   bd:'#1b4f72'},
+  xx    : {bg:'rgba(39,174,96,0.8)',   bd:'#27ae60'},
+  dc    : {bg:'rgba(231,76,60,0.8)',   bd:'#e74c3c'},
+  tdc   : {bg:'rgba(230,126,34,0.8)', bd:'#e67e22'},
+  rkn   : {bg:'rgba(142,68,173,0.8)', bd:'#8e44ad'},
+  khac  : {bg:'rgba(127,140,141,0.8)',bd:'#7f8c8d'},
+};
+const LOAI_AN_FULL = {
+  ds:'Dân sự', vds:'Việc dân sự', hngd:'HNGĐ', vhngd:'Việc HNGĐ',
+  kdtm:'KDTM', ld:'Lao động', hc:'Hành chính', hs:'Hình sự', xlhc:'Xử lý HC', khac:'Khác'
+};
+const GQ_FULL = {
+  cntn:'Công nhận', xx:'Xét xử / GQ', dc:'Đình chỉ', tdc:'Tạm đình chỉ', rkn:'RKN', khac:'Khác'
+};
+
+// Lấy danh sách Thẩm phán duy nhất, sắp theo tên
+function getTPList() {
+  const s = new Set(tpData.map(d => d.tp));
+  return [...s].filter(t => t).sort((a,b) => a.localeCompare(b,'vi'));
+}
+
+function populateTPSelects() {
+  const tps = getTPList();
+  ['tpSelectLoai','tpSelectGQ'].forEach(id => {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
+    tps.forEach(tp => {
+      const o = new Option(tp, tp);
+      sel.add(o);
+    });
+    if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  });
+}
+
+function safeDestroyChart(inst) {
+  try { if (inst) inst.destroy(); } catch(e) {}
+  return null;
+}
+
+// ── Tab 1: Thụ lý & Giải quyết ───────────────────────────────────────
+function renderChartTL() {
+  const tps = getTPList();
+  if (!tps.length) return;
+
+  // Đếm thụ lý mới và giải quyết cho từng TP
+  const moiCnt = {}, gqCnt = {};
+  tps.forEach(tp => { moiCnt[tp] = 0; gqCnt[tp] = 0; });
+
+  tpData.forEach(d => {
+    if (!tps.includes(d.tp)) return;
+    if (d.tags.includes('moi')) moiCnt[d.tp]++;
+    if (d.tags.includes('gq'))  gqCnt[d.tp]++;
+  });
+
+  const ctx = document.getElementById('chartTL').getContext('2d');
+  chartTLInst = safeDestroyChart(chartTLInst);
+  chartTLInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: tps,
+      datasets: [
+        {
+          label: '📥 Thụ lý mới',
+          data: tps.map(tp => moiCnt[tp]),
+          backgroundColor: 'rgba(52,152,219,0.75)',
+          borderColor: '#3498db',
+          borderWidth: 1.5,
+          borderRadius: 5,
+        },
+        {
+          label: '✅ Đã giải quyết',
+          data: tps.map(tp => gqCnt[tp]),
+          backgroundColor: 'rgba(39,174,96,0.75)',
+          borderColor: '#27ae60',
+          borderWidth: 1.5,
+          borderRadius: 5,
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { family: "'Be Vietnam Pro'" }, boxWidth: 14 }},
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label.replace(/^.+ /,'') + ': ' + ctx.parsed.y + ' vụ' }},
+      },
+      scales: {
+        x: { ticks: { font: { family: "'Be Vietnam Pro'", size: 11 }, maxRotation: 30 }, grid: { display: false }},
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: "'Be Vietnam Pro'", size: 11 }}, grid: { color: 'rgba(0,0,0,0.05)' }},
+      }
+    }
+  });
+}
+
+// ── Tab 2: Phân loại án (pie) ─────────────────────────────────────────
+function renderChartLoai() {
+  const selTP = document.getElementById('tpSelectLoai').value;
+  const src = selTP === '__all__' ? tpData : tpData.filter(d => d.tp === selTP);
+
+  // Chỉ đếm vụ thụ lý (tags moi hoặc cu) — tức là vụ được giao trong hệ thống
+  const cnt = {};
+  src.forEach(d => {
+    if (d.tags.includes('moi') || d.tags.includes('cu') || d.tags.includes('tdc')) {
+      const la = d.loaiAn || 'khac';
+      cnt[la] = (cnt[la]||0) + 1;
+    }
+  });
+
+  const labels = Object.keys(cnt).map(k => LOAI_AN_FULL[k]||k);
+  const vals   = Object.values(cnt);
+  const bgs    = Object.keys(cnt).map(k => (LOAI_COLORS[k]||LOAI_COLORS.khac).bg);
+  const bds    = Object.keys(cnt).map(k => (LOAI_COLORS[k]||LOAI_COLORS.khac).bd);
+
+  const ctx = document.getElementById('chartLoai').getContext('2d');
+  chartLoaiInst = safeDestroyChart(chartLoaiInst);
+
+  if (!vals.length) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.font = "14px 'Be Vietnam Pro'";
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText('Không có dữ liệu', ctx.canvas.width/2, 80);
+    return;
+  }
+
+  chartLoaiInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: vals, backgroundColor: bgs, borderColor: bds, borderWidth: 2, hoverOffset: 10 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { font: { family: "'Be Vietnam Pro'", size: 12 }, boxWidth: 14, padding: 14 }},
+        tooltip: { callbacks: {
+          label: ctx => ' ' + ctx.label + ': ' + ctx.parsed + ' vụ (' + Math.round(ctx.parsed/ctx.dataset.data.reduce((a,b)=>a+b,0)*100) + '%)'
+        }}
+      }
+    }
+  });
+}
+
+// ── Tab 3: Hình thức giải quyết (horizontal bar) ──────────────────────
+function tpGQChipClick(la) {
+  tpGQSelLoai = la;
+  document.querySelectorAll('#tpGQChips .tp-gq-chip').forEach(b => {
+    b.classList.toggle('on', b.dataset.la === la);
+  });
+  renderChartGQ();
+}
+
+function renderChartGQ() {
+  const selTP = document.getElementById('tpSelectGQ').value;
+  const GQ_KEYS = ['cntn','xx','dc','tdc','rkn','khac'];
+
+  // Lọc theo loại án được chọn
+  let src = tpData.filter(d => d.loaiGQ !== null); // chỉ vụ đã giải quyết trong kỳ
+  if (tpGQSelLoai !== 'all') src = src.filter(d => {
+    if (tpGQSelLoai === 'ds')   return ['ds','vds'].includes(d.loaiAn);
+    if (tpGQSelLoai === 'hngd') return ['hngd','vhngd'].includes(d.loaiAn);
+    return d.loaiAn === tpGQSelLoai;
+  });
+
+  // Chọn danh sách TP: 1 TP cụ thể hay tất cả
+  const tpList = selTP === '__all__' ? getTPList() : [selTP];
+
+  // Tính ma trận TP × hình thức GQ
+  const matrix = {}; // {tp: {cntn:0, xx:0, ...}}
+  tpList.forEach(tp => { matrix[tp] = {}; GQ_KEYS.forEach(k => matrix[tp][k]=0); });
+  src.forEach(d => {
+    if (!tpList.includes(d.tp)) return;
+    const gq = GQ_KEYS.includes(d.loaiGQ) ? d.loaiGQ : 'khac';
+    matrix[d.tp][gq]++;
+  });
+
+  // Lọc bỏ TP có tổng = 0
+  const activeTPs = tpList.filter(tp => GQ_KEYS.some(k => matrix[tp][k] > 0));
+
+  const ctx = document.getElementById('chartGQ').getContext('2d');
+  chartGQInst = safeDestroyChart(chartGQInst);
+
+  if (!activeTPs.length) {
+    ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+    ctx.font = "14px 'Be Vietnam Pro'"; ctx.fillStyle='#aaa'; ctx.textAlign='center';
+    ctx.fillText('Không có dữ liệu giải quyết trong kỳ', ctx.canvas.width/2, 80);
+    return;
+  }
+
+  const datasets = GQ_KEYS.map(k => ({
+    label: GQ_FULL[k],
+    data: activeTPs.map(tp => matrix[tp][k]),
+    backgroundColor: GQ_COLORS[k].bg,
+    borderColor: GQ_COLORS[k].bd,
+    borderWidth: 1.5,
+    borderRadius: 4,
+    skipNull: true,
+  })).filter(ds => ds.data.some(v => v > 0));
+
+  const barH = Math.max(36, Math.min(64, Math.floor(360/activeTPs.length)));
+  const canvasH = Math.max(280, activeTPs.length * barH + 80);
+  document.getElementById('chartGQ').style.height = canvasH + 'px';
+
+  chartGQInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: activeTPs, datasets },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { family: "'Be Vietnam Pro'" }, boxWidth: 14 }},
+        tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + c.parsed.x + ' vụ' }},
+      },
+      scales: {
+        x: { beginAtZero: true, stacked: false, ticks: { stepSize: 1, font: { family: "'Be Vietnam Pro'", size: 11 }}, grid: { color: 'rgba(0,0,0,0.05)' }},
+        y: { ticks: { font: { family: "'Be Vietnam Pro'", size: 11 }}, grid: { display: false }},
+      }
+    }
+  });
+}
+
+// ── Khởi tạo toàn bộ biểu đồ ─────────────────────────────────────────
+function renderCharts() {
+  if (!tpData.length) { document.getElementById('chartCard').style.display = 'none'; return; }
+  document.getElementById('chartCard').style.display = 'block';
+  populateTPSelects();
+  // Reset về tab đầu
+  switchChartTab('tab-tl');
+  renderChartTL();
+  renderChartLoai();
+  renderChartGQ();
+}
+
+function switchChartTab(tabId) {
+  document.querySelectorAll('.chart-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  document.querySelector('.chart-tab[data-tab="'+tabId+'"]').classList.add('active');
+  // Resize chart khi tab active
+  setTimeout(() => {
+    if (tabId === 'tab-tl'   && chartTLInst)   chartTLInst.resize();
+    if (tabId === 'tab-loai' && chartLoaiInst) chartLoaiInst.resize();
+    if (tabId === 'tab-gq'   && chartGQInst)   chartGQInst.resize();
+  }, 50);
+}
+
+function toggleChartCard() {
+  chartCardVisible = !chartCardVisible;
+  document.getElementById('chartCardBody').style.display = chartCardVisible ? '' : 'none';
+  document.getElementById('chartToggleBtn').textContent = chartCardVisible ? '▼ Ẩn biểu đồ' : '▶ Xem biểu đồ';
+}
 </script>
+-e </body>
+</html>
