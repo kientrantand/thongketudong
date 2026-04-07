@@ -64,7 +64,7 @@ header p{font-size:.78rem;color:rgba(255,255,255,.58);margin-top:3px}
 .sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px}
 .sbox{background:var(--card);border-radius:12px;padding:18px 16px;border:1.5px solid var(--border);text-align:center;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
 .sbox::before{content:'';position:absolute;top:0;left:0;right:0;height:4px}
-.sbox.cu::before{background:var(--accent)}.sbox.moi::before{background:#3498db}.sbox.gq::before{background:var(--success)}.sbox.ton::before{background:var(--danger)}.sbox.tdc::before{background:var(--warning)}.sbox.ctq::before{background:var(--blue)}
+.sbox.cu::before{background:var(--accent)}.sbox.moi::before{background:#3498db}.sbox.gq::before{background:var(--success)}.sbox.ton::before{background:var(--danger)}.sbox.tdc::before{background:var(--warning)}.sbox.ctq::before{background:var(--blue)}.sbox.bicao::before{background:#8e44ad}
 .sbox:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(13,27,42,.09)}
 .slabel{font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px}
 .sval{font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:var(--navy)}
@@ -332,6 +332,7 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
             <th>Thẩm phán</th>
             <th>Kháng cáo/KN</th>
             <th>Cột V</th>
+            <th style="text-align:right">Bị cáo</th>
             <th>Nhãn đếm</th>
           </tr>
         </thead>
@@ -780,9 +781,11 @@ function procDS(rows, X, Y, grp) {
 
 // DATA_HS (dòng 0 là tiêu đề, bắt đầu i=1):
 //   B=idx1(ngày TL), H=idx7(số GQ), I=idx8(ngày GQ), N=idx13(Thẩm phán)
-//   Q=idx16(kháng cáo), R=idx17(kháng nghị), X=idx23(Tạm đình chỉ)
+//   Q=idx16(kháng cáo), R=idx17(kháng nghị), X=idx23(Tạm đình chỉ/CTQ), Y=idx24(số bị cáo)
 function procHS(rows, X, Y) {
   let cu=0, moi=0, gq=0, tdc=0, ctq=0;
+  let biCaoCu=0, biCaoMoi=0;  // bị cáo TL cũ và TL mới riêng biệt
+
   for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
     const maVu      = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
@@ -793,12 +796,14 @@ function procHS(rows, X, Y) {
     const khangCao  = cellStr(c[16]);
     const khangNghi = cellStr(c[17]);
     const colX      = cellStr(c[23]);
+    const soBC      = parseInt(cellStr(c[24])) || 0;  // cột Y - số bị cáo
     const khangStr  = [khangCao ? 'KC: '+khangCao : '', khangNghi ? 'KN: '+khangNghi : ''].filter(Boolean).join(' | ');
-    const isTdcHS   = isTDC(colX) && !isKhoiPhuc(colX);
-    const isCTQ_HS  = /chuyển thẩm quyền/i.test(colX);
+    // Dùng regex rộng hơn để bắt mọi biến thể "Tạm đình chỉ", "TĐC", "tạm đình chỉ..."
+    const isTdcHS  = /tạm đình chỉ|tđc/i.test(colX) && !isKhoiPhuc(colX);
+    const isCTQ_HS = /chuyển thẩm quyền/i.test(colX);
 
     if (!B) {
-      logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr:colX,loai:'',tags:['skip'],skipReason:'Không có ngày B',tp,khangCao:khangStr,colV:colX});
+      logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr:colX,loai:'',tags:['skip'],skipReason:'Không có ngày B',tp,khangCao:khangStr,colV:colX,soBC:''});
       continue;
     }
     const tags = [];
@@ -807,8 +812,19 @@ function procHS(rows, X, Y) {
       // CTQ: không tính bất kỳ số liệu nào
       ctq++; tags.push('ctq');
     } else {
-      if (inR(B, X, Y))            { moi++; tags.push('moi'); }
-      if (B < X && (!F || F >= X)) { cu++;  tags.push('cu');  }
+      // Thụ lý mới
+      if (inR(B, X, Y)) {
+        moi++;
+        biCaoMoi += soBC;
+        tags.push('moi');
+      }
+      // Thụ lý cũ còn lại
+      if (B < X && (!F || F >= X)) {
+        cu++;
+        biCaoCu += soBC;
+        tags.push('cu');
+      }
+      // TĐC hoặc giải quyết
       if (isTdcHS) {
         tdc++; tags.push('tdc');
       } else {
@@ -816,12 +832,12 @@ function procHS(rows, X, Y) {
       }
     }
     if (tags.length === 0) tags.push('none');
-    logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr:soGQ,loai:'Hình sự',soGQ,tp,khangCao:khangStr,colV:colX,tags,skipReason:''});
+    logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr:soGQ,loai:'Hình sự',soGQ,tp,khangCao:khangStr,colV:colX,soBC,tags,skipReason:''});
     if (!isCTQ_HS) {
       tpData.push({tp, src:'HS', loaiAn:'hs', loaiGQ: F && inR(F,X,Y) && !isTdcHS ? 'xx' : null, B, F, tags: tags.slice()});
     }
   }
-  return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq };
+  return { cu, moi, gq, tdc, ctq, biCaoCu, biCaoMoi, ton: cu+moi-gq };
 }
 
 // DATA_XLHC (dòng 0 là tiêu đề, bắt đầu i=1):
@@ -883,8 +899,23 @@ async function run() {
     }
   } catch(e) { st('error', e.message); btn.disabled=false; return; }
 
-  let T = {cu:0, moi:0, gq:0, tdc:0, ctq:0, ton:0};
-  Object.values(res).forEach(r => { T.cu+=r.cu; T.moi+=r.moi; T.gq+=r.gq; T.tdc+=(r.tdc||0); T.ctq+=(r.ctq||0); T.ton+=r.ton; });
+  let T = {cu:0, moi:0, gq:0, tdc:0, ctq:0, ton:0, biCaoCu:0, biCaoMoi:0};
+  Object.values(res).forEach(r => {
+    T.cu+=r.cu; T.moi+=r.moi; T.gq+=r.gq;
+    T.tdc+=(r.tdc||0); T.ctq+=(r.ctq||0); T.ton+=r.ton;
+    T.biCaoCu+=(r.biCaoCu||0); T.biCaoMoi+=(r.biCaoMoi||0);
+  });
+
+  const hasHS = !!res.HS;
+
+  // Hàm tạo box hiển thị "N vụ / M bị cáo" cho HS
+  function boxHS(cls, label, vus, bc) {
+    return '<div class="sbox '+cls+'">'
+      +'<div class="slabel">'+label+'</div>'
+      +'<div class="sval">'+vus.toLocaleString('vi-VN')+'</div>'
+      +(bc > 0 ? '<div style="font-size:.72rem;color:var(--muted);margin-top:4px">'+bc.toLocaleString('vi-VN')+' bị cáo</div>' : '')
+      +'</div>';
+  }
 
   document.getElementById('tStats').innerHTML =
     box('cu','Thụ lý cũ còn lại',T.cu) +
@@ -896,18 +927,35 @@ async function run() {
 
   const NM={DS:'Dân sự mở rộng',HS:'Hình sự',XLHC:'Xử lý hành chính'};
   const TC={DS:'tds',HS:'ths',XLHC:'thc'};
+  const showBC = hasHS;
+
+  // Format "N vụ / M BC" cho ô bị cáo
+  function fmtBC(vus, bc) {
+    return vus + ' vụ' + (bc > 0 ? ' / ' + bc + ' BC' : '');
+  }
+
   let tb='';
   Object.entries(res).forEach(([k,v]) => {
+    const bcCuStr  = k==='HS' ? fmtBC(v.cu,  v.biCaoCu||0)  : v.cu;
+    const bcMoiStr = k==='HS' ? fmtBC(v.moi, v.biCaoMoi||0) : v.moi;
     tb += '<tr><td><span class="tag '+TC[k]+'">'+NM[k]+'</span></td>'
-      +'<td class="r">'+v.cu+'</td><td class="r">'+v.moi+'</td>'
-      +'<td class="r">'+v.gq+'</td><td class="r" style="color:var(--warning)">'+(v.tdc||0)+'</td>'
+      +'<td class="r">'+bcCuStr+'</td>'
+      +'<td class="r">'+bcMoiStr+'</td>'
+      +'<td class="r">'+v.gq+'</td>'
+      +'<td class="r" style="color:var(--warning)">'+(v.tdc||0)+'</td>'
       +'<td class="r" style="color:var(--blue)">'+(v.ctq||0)+'</td>'
       +'<td class="r" style="color:var(--danger)">'+v.ton+'</td></tr>';
   });
+  // Dòng tổng — hiển thị bị cáo riêng nếu có HS
+  const totCuStr  = hasHS ? fmtBC(T.cu,  T.biCaoCu)  : T.cu;
+  const totMoiStr = hasHS ? fmtBC(T.moi, T.biCaoMoi) : T.moi;
   tb += '<tr class="trow"><td>Tổng cộng</td>'
-    +'<td class="r">'+T.cu+'</td><td class="r">'+T.moi+'</td>'
-    +'<td class="r">'+T.gq+'</td><td class="r" style="color:var(--warning)">'+T.tdc+'</td>'
+    +'<td class="r">'+totCuStr+'</td>'
+    +'<td class="r">'+totMoiStr+'</td>'
+    +'<td class="r">'+T.gq+'</td>'
+    +'<td class="r" style="color:var(--warning)">'+T.tdc+'</td>'
     +'<td class="r" style="color:var(--blue)">'+T.ctq+'</td>'
+    +'<td class="r" style="color:var(--danger)">'+T.ton+'</td></tr>';
     +'<td class="r" style="color:var(--danger)">'+T.ton+'</td></tr>';
 
   const gl = document.querySelector('#grpChips .chip.on')?.textContent || '';
@@ -917,8 +965,13 @@ async function run() {
     +(selGroup!=='all'?' &nbsp;|&nbsp; 📂 <b>'+gl+'</b>':'')
     +' &nbsp;|&nbsp; '+totalRows+' dòng xử lý</p>'
     +'<div style="overflow-x:auto"><table class="dt"><thead><tr>'
-    +'<th>Nguồn</th><th style="text-align:right">TL cũ còn lại</th><th style="text-align:right">TL mới</th>'
-    +'<th style="text-align:right">Giải quyết</th><th style="text-align:right">Tạm đình chỉ</th><th style="text-align:right">Chuyển TQ</th><th style="text-align:right">Còn tồn</th>'
+    +'<th>Nguồn</th>'
+    +'<th style="text-align:right">TL cũ còn lại'+(showBC?' <span style="font-weight:400;font-size:.7rem;color:rgba(255,255,255,.6)">(vụ/BC)</span>':'')+'</th>'
+    +'<th style="text-align:right">TL mới'+(showBC?' <span style="font-weight:400;font-size:.7rem;color:rgba(255,255,255,.6)">(vụ/BC)</span>':'')+'</th>'
+    +'<th style="text-align:right">Giải quyết</th>'
+    +'<th style="text-align:right">Tạm đình chỉ</th>'
+    +'<th style="text-align:right">Chuyển TQ</th>'
+    +'<th style="text-align:right">Còn tồn</th>'
     +'</tr></thead><tbody>'+tb+'</tbody></table></div>';
 
   document.getElementById('results').style.display = 'block';
@@ -1001,12 +1054,13 @@ function renderLogTable() {
       +'<td style="max-width:130px;word-break:break-word;font-size:.75rem;font-weight:600;color:var(--blue)">'+escH(e.tp||'—')+'</td>'
       +'<td style="max-width:110px;word-break:break-word;font-size:.73rem">'+escH(e.khangCao||'—')+'</td>'
       +'<td style="max-width:120px;word-break:break-word;font-size:.75rem">'+escH(e.colV||'—')+'</td>'
+      +'<td class="r" style="font-size:.78rem;color:#8e44ad">'+(e.soBC != null && e.soBC !== '' ? e.soBC : '—')+'</td>'
       +'<td>'+makeTags(e)+'</td>'
       +'</tr>';
   }).join('');
 
   document.getElementById('logTbody').innerHTML = rows ||
-    '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">Không có dòng nào phù hợp</td></tr>';
+    '<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:20px">Không có dòng nào phù hợp</td></tr>';
 
   if (filtered.length > 2000) {
     document.getElementById('logCount').textContent += ' (hiển thị 2000 đầu)';
@@ -1033,7 +1087,7 @@ function exportLogCSV() {
   });
 
   const BOM = '\uFEFF';
-  const header = ['#','Nguồn','Dòng GS','Mã / Tên vụ','Ngày thụ lý (B)','Ngày GQ (F)','Kết quả GQ (G)','Loại án (I)','Ghi chú (J)','Thẩm phán','Kháng cáo/KN','Cột V','Nhãn đếm'];
+  const header = ['#','Nguồn','Dòng GS','Mã / Tên vụ','Ngày thụ lý (B)','Ngày GQ (F)','Kết quả GQ (G)','Loại án (I)','Ghi chú (J)','Thẩm phán','Kháng cáo/KN','Cột V','Bị cáo','Nhãn đếm'];
   const lines = [header.join(',')];
   filtered.forEach((e, i) => {
     const tagStr = e.skipReason ? ('Bỏ qua: '+e.skipReason) : e.tags.map(t=>TAG_LABEL[t]).join(' | ');
@@ -1048,6 +1102,7 @@ function exportLogCSV() {
       '"'+String(e.tp||'').replace(/"/g,'""')+'"',
       '"'+String(e.khangCao||'').replace(/"/g,'""')+'"',
       '"'+String(e.colV||'').replace(/"/g,'""')+'"',
+      e.soBC != null && e.soBC !== '' ? e.soBC : '',
       '"'+tagStr+'"'
     ].join(','));
   });
