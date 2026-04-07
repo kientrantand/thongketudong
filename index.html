@@ -689,8 +689,15 @@ function procDS(rows, X, Y, grp) {
       i++; continue;
     }
 
-    // Nếu không phải dòng chính → dòng phụ lạc lõng, bỏ qua (không log để tránh nhiễu)
-    if (!isMainRow(c)) { i++; continue; }
+    // Nếu không phải dòng chính → dòng phụ lạc lõng
+    // Log lại để debug nếu dòng có dữ liệu đáng chú ý
+    if (!isMainRow(c)) {
+      const rawC = [c[0],c[1],c[8]].map(x => x ? JSON.stringify(x).slice(0,30) : '∅').join(' | ');
+      logEntries.push({src:'DS',row:i+1,ma:'(dòng phụ/lạc)',B:null,F:null,gStr:'',loai:'',
+        tags:['skip'],skipReason:'Không phải dòng chính — raw[A,B,I]: '+rawC,
+        tp:'',khangCao:'',colV:'',ghiChu:''});
+      i++; continue;
+    }
 
     // Gom các dòng phụ ngay sau dòng chính này
     const subs = [];
