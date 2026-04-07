@@ -674,7 +674,10 @@ function procDS(rows, X, Y, grp) {
     return null;
   }
   function isMainRow(c) {
-    return !!cellStr(c[0]) || !!parseGvizDate(c[1]);
+    // Dòng chính nếu: có STL (c[0] không rỗng) HOẶC có ngày B hợp lệ (c[1] parse được)
+    if (cellStr(c[0])) return true;
+    if (parseGvizDate(c[1])) return true;
+    return false;
   }
 
   let i = 1; // bỏ dòng tiêu đề
@@ -686,7 +689,7 @@ function procDS(rows, X, Y, grp) {
       i++; continue;
     }
 
-    // Nếu không phải dòng chính → dòng phụ lạc lõng, bỏ qua
+    // Nếu không phải dòng chính → dòng phụ lạc lõng, bỏ qua (không log để tránh nhiễu)
     if (!isMainRow(c)) { i++; continue; }
 
     // Gom các dòng phụ ngay sau dòng chính này
@@ -704,7 +707,7 @@ function procDS(rows, X, Y, grp) {
     const stl      = cellStr(c[0]);
     const tenVu    = pick(c, subs, 2);
     const maVu     = (stl ? 'STL '+stl : '') + (tenVu ? (stl?' – ':'')+tenVu.slice(0,40) : '') || ('Dòng '+(i+1));
-    const I        = pick(c, subs, 8);   // Loại án
+    const I        = pick(c, subs, 8);   // Loại án — tìm trong cả block
     const B        = mn(pickDate(c, subs, 1));
     const F        = mn(pickDate(c, subs, 5));
     const gStr     = pick(c, subs, 6);
@@ -712,24 +715,32 @@ function procDS(rows, X, Y, grp) {
     const ghiChu   = pick(c, subs, 9);
     const tp       = pick(c, subs, 10) || '(Chưa phân công)';
     const colV     = pick(c, subs, 21);
+
+    // Debug: nếu I rỗng, ghi chú raw c[8] để tra cứu
+    const rawC8 = c[8] ? JSON.stringify(c[8]).slice(0,50) : '(rỗng)';
+    const debugI = I || ('⚠️ rỗng, raw='+rawC8+', subs='+subs.length);
     const isCTQ    = /chuyển thẩm quyền/i.test(colV);
     const isTdcV   = /tạm đình chỉ/i.test(colV) && !isKhoiPhuc(colV);
     const isKhPhuc = isKhoiPhuc(colV);
 
     if (HGDT.test(I)) {
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'HGĐT',tp,khangCao:'',colV,ghiChu});
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:debugI,tags:['skip'],skipReason:'HGĐT',tp,khangCao:'',colV,ghiChu});
       i = j; continue;
     }
     if (grp !== 'all') {
       const fn = GMATCH[grp];
       if (!fn || !fn(I)) {
-        logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'Lọc nhóm',tp,khangCao,colV,ghiChu});
+        logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:debugI,tags:['skip'],
+          skipReason:'Lọc nhóm (grp='+grp+', I="'+I+'", subs='+subs.length+')',
+          tp,khangCao,colV,ghiChu});
         i = j; continue;
       }
     }
     if (!B) {
       const rawB = c[1] ? JSON.stringify(c[1]).slice(0,80) : '(rỗng)';
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB,tp,khangCao,colV,ghiChu});
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:debugI,tags:['skip'],
+        skipReason:'Không có ngày B — raw: '+rawB+', I="'+I+'", subs='+subs.length,
+        tp,khangCao,colV,ghiChu});
       i = j; continue;
     }
 
@@ -747,7 +758,7 @@ function procDS(rows, X, Y, grp) {
       }
     }
     if (tags.length === 0) tags.push('none');
-    logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,khangCao,ghiChu,tp,tags,skipReason:'',colV});
+    logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:debugI,khangCao,ghiChu,tp,tags,skipReason:'',colV});
     if (!isCTQ) {
       tpData.push({tp, src:'DS', loaiAn:classifyLoaiAn(I), loaiGQ:F&&inR(F,X,Y)&&!isTdcV?classifyGQ(gStr):null, B, F, tags:tags.slice()});
     }
