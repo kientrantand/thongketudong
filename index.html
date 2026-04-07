@@ -680,7 +680,8 @@ function procDS(rows, X, Y, grp) {
     return false;
   }
 
-  let i = 1; // bỏ dòng tiêu đề
+  // DATA_DS_EXTEND: dòng 1 là tiêu đề nhập tay, dữ liệu từ dòng 2 → rows[1] → i=1
+  let i = 1;
   while (i < rows.length) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
 
@@ -874,6 +875,15 @@ async function run() {
       st('loading', 'Đang tải sheet ' + s + '...');
       const { rows, cols } = await fetchGviz(s);
       colDebug[s] = cols;
+      // DEBUG: hiển thị raw 3 cột đầu của rows[0] và rows[1] để kiểm tra
+      if (s === 'DS' && rows.length > 1) {
+        const r0 = (rows[0]&&rows[0].c||[]).slice(0,3).map(c=>c?JSON.stringify(c).slice(0,25):'∅').join(' | ');
+        const r1 = (rows[1]&&rows[1].c||[]).slice(0,3).map(c=>c?JSON.stringify(c).slice(0,25):'∅').join(' | ');
+        console.log('DS rows[0]:', r0);
+        console.log('DS rows[1]:', r1);
+        st('loading', 'DS rows[0]: '+r0+' || rows[1]: '+r1);
+        await new Promise(r=>setTimeout(r,3000)); // dừng 3 giây để xem
+      }
       st('loading', 'Đang xử lý ' + rows.length + ' dòng sheet ' + s + '...');
       if (s === 'DS')   res.DS   = procDS(rows, X, Y, selGroup);
       if (s === 'HS')   res.HS   = procHS(rows, X, Y);
