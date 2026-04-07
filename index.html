@@ -328,6 +328,7 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
             <th>Ngày GQ (F)</th>
             <th>Kết quả GQ (G)</th>
             <th>Loại án (I)</th>
+            <th>Ghi chú (J)</th>
             <th>Thẩm phán</th>
             <th>Kháng cáo/KN</th>
             <th>Cột V</th>
@@ -337,6 +338,16 @@ table.log-tbl td.mono{font-family:monospace;font-size:.78rem}
         <tbody id="logTbody"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- DEBUG CỘT GVIZ -->
+  <div class="card" id="colDebugPanel" style="display:none">
+    <div class="sec-title" style="justify-content:space-between">
+      <span>🔬 Debug: Cấu trúc cột thực tế từ gviz</span>
+      <button onclick="document.getElementById('colDebugPanel').style.display='none'" style="padding:4px 12px;border-radius:7px;border:1.5px solid var(--border);background:var(--surface);font-size:.76rem;font-family:inherit;cursor:pointer;color:var(--muted)">✕ Đóng</button>
+    </div>
+    <p style="font-size:.75rem;color:var(--muted);margin-bottom:12px">Bảng bên dưới hiển thị tên cột thực tế gviz trả về (index bắt đầu từ 0). Dùng để xác định code đang đọc đúng cột chưa.</p>
+    <div id="colDebugBody"></div>
   </div>
 </div>
 
@@ -580,7 +591,7 @@ async function fetchGviz(name) {
   if (start < 0) throw new Error('Phản hồi không hợp lệ từ sheet ' + name);
   const obj = JSON.parse(txt.slice(start, end+1));
   if (!obj.table) throw new Error('Sheet ' + name + ': không có dữ liệu. Kiểm tra GID.');
-  return obj.table.rows || [];
+  return { rows: obj.table.rows || [], cols: obj.table.cols || [] };
 }
 
 // ── helpers ───────────────────────────────────────────────────────────
@@ -651,8 +662,10 @@ function procDS(rows, X, Y, grp) {
   let cu=0, moi=0, gq=0, tdc=0, ctq=0;
   for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const I        = cellStr(c[8]);
-    const maVu     = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
+    const stl   = cellStr(c[0]);
+    const tenVu = cellStr(c[2]);
+    const maVu  = (stl ? 'STL '+stl : '') + (tenVu ? (stl ? ' – ' : '') + tenVu.slice(0,40) : '') || ('Dòng '+(i+1));
+    const I     = cellStr(c[8]);
     if (HGDT.test(I)) {
       logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'HGĐT'});
       continue;
@@ -665,6 +678,7 @@ function procDS(rows, X, Y, grp) {
     const F        = mn(parseGvizDate(c[5]));
     const gStr     = cellStr(c[6]);
     const khangCao = cellStr(c[7]);
+    const ghiChu   = cellStr(c[9]);   // cột J - ghi chú (Tồn từ t9...)
     const tp       = cellStr(c[10]) || '(Chưa phân công)';
     const colV     = cellStr(c[21]);
     const isCTQ    = /chuyển thẩm quyền/i.test(colV);
@@ -672,8 +686,8 @@ function procDS(rows, X, Y, grp) {
     const isKhPhuc = isKhoiPhuc(colV);
 
     if (!B) {
-      const rawB = c[1] ? JSON.stringify(c[1]).slice(0,60) : '(rỗng)';
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB,tp,khangCao:'',colV});
+      const rawB = c[1] ? JSON.stringify(c[1]).slice(0,80) : '(rỗng)';
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB,tp,khangCao:'',colV,ghiChu});
       continue;
     }
 
@@ -696,7 +710,7 @@ function procDS(rows, X, Y, grp) {
       }
     }
     if (tags.length === 0) tags.push('none');
-    logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,khangCao,tp,tags,skipReason:'',colV});
+    logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,khangCao,ghiChu,tp,tags,skipReason:'',colV});
 
     if (!isCTQ) {
       tpData.push({tp, src:'DS', loaiAn: classifyLoaiAn(I), loaiGQ: F && inR(F,X,Y) && !isTdcV ? classifyGQ(gStr) : null, B, F, tags: tags.slice()});
@@ -800,10 +814,12 @@ async function run() {
 
   const res = {};
   let totalRows = 0;
+  const colDebug = {};   // lưu thông tin cột thực tế từ gviz
   try {
     for (const s of sheets) {
       st('loading', 'Đang tải sheet ' + s + '...');
-      const rows = await fetchGviz(s);
+      const { rows, cols } = await fetchGviz(s);
+      colDebug[s] = cols;
       st('loading', 'Đang xử lý ' + rows.length + ' dòng sheet ' + s + '...');
       if (s === 'DS')   res.DS   = procDS(rows, X, Y, selGroup);
       if (s === 'HS')   res.HS   = procHS(rows, X, Y);
@@ -853,6 +869,7 @@ async function run() {
   document.getElementById('results').style.display = 'block';
   renderGloai();
   renderCharts();
+  renderColDebug(colDebug);
 
   // Hiển thị log
   logFilter = 'all';
@@ -906,7 +923,7 @@ function renderLogTable() {
     }
     // filter by search
     if (q) {
-      const haystack = [e.ma, e.src, e.loai, e.gStr, e.skipReason, e.tp||'', e.khangCao||''].join(' ').toLowerCase();
+      const haystack = [e.ma, e.src, e.loai, e.gStr, e.skipReason, e.tp||'', e.khangCao||'', e.ghiChu||''].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -925,6 +942,7 @@ function renderLogTable() {
       +'<td class="mono">'+fmtD(e.F)+'</td>'
       +'<td style="max-width:160px;word-break:break-word;font-size:.75rem">'+escH(e.gStr||'—')+'</td>'
       +'<td style="max-width:130px;word-break:break-word;font-size:.75rem">'+escH(e.loai||'—')+'</td>'
+      +'<td style="max-width:120px;word-break:break-word;font-size:.73rem;color:var(--muted)">'+escH(e.ghiChu||'—')+'</td>'
       +'<td style="max-width:130px;word-break:break-word;font-size:.75rem;font-weight:600;color:var(--blue)">'+escH(e.tp||'—')+'</td>'
       +'<td style="max-width:110px;word-break:break-word;font-size:.73rem">'+escH(e.khangCao||'—')+'</td>'
       +'<td style="max-width:120px;word-break:break-word;font-size:.75rem">'+escH(e.colV||'—')+'</td>'
@@ -933,7 +951,7 @@ function renderLogTable() {
   }).join('');
 
   document.getElementById('logTbody').innerHTML = rows ||
-    '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">Không có dòng nào phù hợp</td></tr>';
+    '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">Không có dòng nào phù hợp</td></tr>';
 
   if (filtered.length > 2000) {
     document.getElementById('logCount').textContent += ' (hiển thị 2000 đầu)';
@@ -960,7 +978,7 @@ function exportLogCSV() {
   });
 
   const BOM = '\uFEFF';
-  const header = ['#','Nguồn','Dòng GS','Mã / Tên vụ','Ngày thụ lý (B)','Ngày GQ (F)','Kết quả GQ (G)','Loại án (I)','Thẩm phán','Kháng cáo/KN','Cột V','Nhãn đếm'];
+  const header = ['#','Nguồn','Dòng GS','Mã / Tên vụ','Ngày thụ lý (B)','Ngày GQ (F)','Kết quả GQ (G)','Loại án (I)','Ghi chú (J)','Thẩm phán','Kháng cáo/KN','Cột V','Nhãn đếm'];
   const lines = [header.join(',')];
   filtered.forEach((e, i) => {
     const tagStr = e.skipReason ? ('Bỏ qua: '+e.skipReason) : e.tags.map(t=>TAG_LABEL[t]).join(' | ');
@@ -971,6 +989,7 @@ function exportLogCSV() {
       e.F ? fmtDate(e.F) : '',
       '"'+String(e.gStr||'').replace(/"/g,'""')+'"',
       '"'+String(e.loai||'').replace(/"/g,'""')+'"',
+      '"'+String(e.ghiChu||'').replace(/"/g,'""')+'"',
       '"'+String(e.tp||'').replace(/"/g,'""')+'"',
       '"'+String(e.khangCao||'').replace(/"/g,'""')+'"',
       '"'+String(e.colV||'').replace(/"/g,'""')+'"',
@@ -1362,6 +1381,42 @@ function toggleChartCard() {
   chartCardVisible = !chartCardVisible;
   document.getElementById('chartCardBody').style.display = chartCardVisible ? '' : 'none';
   document.getElementById('chartToggleBtn').textContent = chartCardVisible ? '▼ Ẩn biểu đồ' : '▶ Xem biểu đồ';
+// ── DEBUG CỘT GVIZ ────────────────────────────────────────────────────
+function renderColDebug(colDebug) {
+  const COL_LETTER = i => {
+    let s = '', n = i;
+    while (n >= 0) { s = String.fromCharCode(65 + n%26) + s; n = Math.floor(n/26)-1; }
+    return s;
+  };
+  const SHEET_USED = {
+    DS:   {B:1,F:5,G:6,H:7,I:8,K:10,V:21},
+    HS:   {B:1,H:7,I:8,N:13,Q:16,R:17,X:23},
+    XLHC: {B:1,E:4,G:6},
+  };
+  let html = '';
+  Object.entries(colDebug).forEach(([sheet, cols]) => {
+    const used = SHEET_USED[sheet] || {};
+    const usedIdx = new Set(Object.values(used));
+    html += '<p style="font-weight:700;color:var(--navy);margin:12px 0 6px">'
+      + {DS:'📋 DATA_DS_EXTEND',HS:'⚖️ DATA_HS',XLHC:'📜 DATA_XLHC'}[sheet]
+      + ' <span style="font-weight:400;font-size:.75rem;color:var(--muted)">(' + cols.length + ' cột)</span></p>';
+    html += '<div style="overflow-x:auto"><table class="dt" style="font-size:.78rem"><thead><tr>'
+      + '<th>Index</th><th>Cột GS</th><th>Nhãn (label)</th><th>Kiểu</th><th>Ghi chú code</th>'
+      + '</tr></thead><tbody>';
+    cols.forEach((col, idx) => {
+      const isUsed = usedIdx.has(idx);
+      const usedLabel = Object.entries(used).filter(([,v])=>v===idx).map(([k])=>k).join(',');
+      html += '<tr style="'+(isUsed?'background:#fffbe6':'')+'"><td class="mono">'+idx+'</td>'
+        + '<td class="mono" style="font-weight:700">'+COL_LETTER(idx)+'</td>'
+        + '<td>'+(col.label||col.id||'—')+'</td>'
+        + '<td style="color:var(--muted)">'+col.type+'</td>'
+        + '<td style="color:'+(isUsed?'var(--warning)':'var(--muted)')+'">'+
+          (isUsed ? '⟵ code dùng làm cột '+usedLabel : '')+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  });
+  document.getElementById('colDebugBody').innerHTML = html;
+  document.getElementById('colDebugPanel').style.display = 'block';
 }
 </script>
 -e </body>
