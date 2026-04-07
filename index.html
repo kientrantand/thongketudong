@@ -655,54 +655,91 @@ const GQ_LABEL = {
 };
 
 // ── xử lý sheet ───────────────────────────────────────────────────────
-// DATA_DS_EXTEND (dòng 0 là tiêu đề, bắt đầu i=1):
-//   B=idx1(ngày TL), E=idx4(số GQ), F=idx5(ngày GQ), G=idx6(kết quả GQ),
-//   H=idx7(kháng cáo/KN), I=idx8(loại án), K=idx10(Thẩm phán), V=idx21(TĐC/CTQ)
+// DATA_DS_EXTEND — mỗi vụ án có thể trải nhiều dòng (tên các bên ở dòng phụ).
+// Dòng chính: có STL (cột A) hoặc có ngày B (cột B).
+// Dòng phụ: không có STL, không có B — nhưng có thể chứa I(loại án), J(ghi chú), K(TP).
+// → Look-ahead: gom dữ liệu từ cả block dòng chính + dòng phụ.
+//   A=0,B=1,C=2,D=3,E=4,F=5,G=6,H=7,I=8,J=9,K=10,...,V=21
 function procDS(rows, X, Y, grp) {
   let cu=0, moi=0, gq=0, tdc=0, ctq=0;
-  for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
+
+  function pick(mainC, subs, idx) {
+    const v = cellStr(mainC[idx]); if (v) return v;
+    for (const s of subs) { const sv = cellStr(s[idx]); if (sv) return sv; }
+    return '';
+  }
+  function pickDate(mainC, subs, idx) {
+    const d = parseGvizDate(mainC[idx]); if (d) return d;
+    for (const s of subs) { const sd = parseGvizDate(s[idx]); if (sd) return sd; }
+    return null;
+  }
+  function isMainRow(c) {
+    return !!cellStr(c[0]) || !!parseGvizDate(c[1]);
+  }
+
+  let i = 1; // bỏ dòng tiêu đề
+  while (i < rows.length) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const stl   = cellStr(c[0]);
-    const tenVu = cellStr(c[2]);
-    const maVu  = (stl ? 'STL '+stl : '') + (tenVu ? (stl ? ' – ' : '') + tenVu.slice(0,40) : '') || ('Dòng '+(i+1));
-    const I     = cellStr(c[8]);
-    if (HGDT.test(I)) {
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'HGĐT'});
-      continue;
+
+    // Bỏ dòng hoàn toàn rỗng
+    if (!c.length || c.every(cell => !cell || cell.v === null || cell.v === undefined || cell.v === '')) {
+      i++; continue;
     }
-    if (grp !== 'all') { const fn = GMATCH[grp]; if (!fn || !fn(I)) {
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'Lọc nhóm'});
-      continue;
-    }}
-    const B        = mn(parseGvizDate(c[1]));
-    const F        = mn(parseGvizDate(c[5]));
-    const gStr     = cellStr(c[6]);
-    const khangCao = cellStr(c[7]);
-    const ghiChu   = cellStr(c[9]);   // cột J - ghi chú (Tồn từ t9...)
-    const tp       = cellStr(c[10]) || '(Chưa phân công)';
-    const colV     = cellStr(c[21]);
+
+    // Nếu không phải dòng chính → dòng phụ lạc lõng, bỏ qua
+    if (!isMainRow(c)) { i++; continue; }
+
+    // Gom các dòng phụ ngay sau dòng chính này
+    const subs = [];
+    let j = i + 1;
+    while (j < rows.length) {
+      const nc = (rows[j] && rows[j].c) ? rows[j].c : [];
+      if (!nc.length || nc.every(cell => !cell || cell.v === null || cell.v === undefined || cell.v === '')) { j++; continue; }
+      if (isMainRow(nc)) break;
+      subs.push(nc);
+      j++;
+    }
+
+    // Gom dữ liệu
+    const stl      = cellStr(c[0]);
+    const tenVu    = pick(c, subs, 2);
+    const maVu     = (stl ? 'STL '+stl : '') + (tenVu ? (stl?' – ':'')+tenVu.slice(0,40) : '') || ('Dòng '+(i+1));
+    const I        = pick(c, subs, 8);   // Loại án
+    const B        = mn(pickDate(c, subs, 1));
+    const F        = mn(pickDate(c, subs, 5));
+    const gStr     = pick(c, subs, 6);
+    const khangCao = pick(c, subs, 7);
+    const ghiChu   = pick(c, subs, 9);
+    const tp       = pick(c, subs, 10) || '(Chưa phân công)';
+    const colV     = pick(c, subs, 21);
     const isCTQ    = /chuyển thẩm quyền/i.test(colV);
     const isTdcV   = /tạm đình chỉ/i.test(colV) && !isKhoiPhuc(colV);
     const isKhPhuc = isKhoiPhuc(colV);
 
+    if (HGDT.test(I)) {
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'HGĐT',tp,khangCao:'',colV,ghiChu});
+      i = j; continue;
+    }
+    if (grp !== 'all') {
+      const fn = GMATCH[grp];
+      if (!fn || !fn(I)) {
+        logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'Lọc nhóm',tp,khangCao,colV,ghiChu});
+        i = j; continue;
+      }
+    }
     if (!B) {
       const rawB = c[1] ? JSON.stringify(c[1]).slice(0,80) : '(rỗng)';
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB,tp,khangCao:'',colV,ghiChu});
-      continue;
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB,tp,khangCao,colV,ghiChu});
+      i = j; continue;
     }
 
     const tags = [];
-
     if (isCTQ) {
-      // CTQ: không tính bất kỳ số liệu nào, chỉ ghi tag để nhận biết
       ctq++; tags.push('ctq');
     } else {
-      // Tất cả vụ còn lại (kể cả TĐC): tính thụ lý bình thường
-      if (inR(B, X, Y))              { moi++; tags.push('moi'); }
-      if (B < X && (!F || F >= X))   { cu++;  tags.push('cu');  }
-
+      if (inR(B, X, Y))            { moi++; tags.push('moi'); }
+      if (B < X && (!F || F >= X)) { cu++;  tags.push('cu');  }
       if (isTdcV) {
-        // TĐC: đếm riêng tdc, không đếm gq, vẫn tính vào tồn
         tdc++; tags.push('tdc');
       } else {
         if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
@@ -711,15 +748,14 @@ function procDS(rows, X, Y, grp) {
     }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,khangCao,ghiChu,tp,tags,skipReason:'',colV});
-
     if (!isCTQ) {
-      tpData.push({tp, src:'DS', loaiAn: classifyLoaiAn(I), loaiGQ: F && inR(F,X,Y) && !isTdcV ? classifyGQ(gStr) : null, B, F, tags: tags.slice()});
+      tpData.push({tp, src:'DS', loaiAn:classifyLoaiAn(I), loaiGQ:F&&inR(F,X,Y)&&!isTdcV?classifyGQ(gStr):null, B, F, tags:tags.slice()});
     }
-    if (F && inR(F, X, Y) && !isTdcV && !isCTQ) {
-      gLoaiData.push({loaiAn: classifyLoaiAn(I), loaiGQ: classifyGQ(gStr), ma:maVu, row:i+1, B, F, gStr, loai:I});
+    if (F && inR(F,X,Y) && !isTdcV && !isCTQ) {
+      gLoaiData.push({loaiAn:classifyLoaiAn(I), loaiGQ:classifyGQ(gStr), ma:maVu, row:i+1, B, F, gStr, loai:I});
     }
+    i = j;
   }
-  // Tồn = TL cũ + TL mới − Giải quyết (TĐC vẫn nằm trong tồn, CTQ không tính)
   return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq };
 }
 
