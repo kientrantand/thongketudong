@@ -651,7 +651,7 @@ function procDS(rows, X, Y, grp) {
   let cu=0, moi=0, gq=0, tdc=0, ctq=0;
   for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const I        = cellStr(c[8]);   // Loại án (cột I)
+    const I        = cellStr(c[8]);
     const maVu     = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
     if (HGDT.test(I)) {
       logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'HGĐT'});
@@ -661,12 +661,12 @@ function procDS(rows, X, Y, grp) {
       logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:I,tags:['skip'],skipReason:'Lọc nhóm'});
       continue;
     }}
-    const B         = mn(parseGvizDate(c[1]));   // cột B - ngày thụ lý
-    const F         = mn(parseGvizDate(c[5]));   // cột F - ngày giải quyết
-    const gStr      = cellStr(c[6]);              // cột G - kết quả GQ
-    const khangCao  = cellStr(c[7]);              // cột H - kháng cáo/kháng nghị
-    const tp        = cellStr(c[10]) || '(Chưa phân công)'; // cột K - Thẩm phán
-    const colV = cellStr(c[21]);
+    const B        = mn(parseGvizDate(c[1]));
+    const F        = mn(parseGvizDate(c[5]));
+    const gStr     = cellStr(c[6]);
+    const khangCao = cellStr(c[7]);
+    const tp       = cellStr(c[10]) || '(Chưa phân công)';
+    const colV     = cellStr(c[21]);
     const isCTQ    = /chuyển thẩm quyền/i.test(colV);
     const isTdcV   = /tạm đình chỉ/i.test(colV) && !isKhoiPhuc(colV);
     const isKhPhuc = isKhoiPhuc(colV);
@@ -679,56 +679,54 @@ function procDS(rows, X, Y, grp) {
 
     const tags = [];
 
-    // ── Thụ lý mới: B nằm trong kỳ [X,Y]
-    if (inR(B, X, Y)) { moi++; tags.push('moi'); }
-
-    // ── Thụ lý cũ còn lại: B trước kỳ VÀ chưa giải quyết trước kỳ
-    //    (tức là F rỗng hoặc F >= X — vụ được giải quyết TRONG hoặc SAU kỳ)
-    if (B < X && (!F || F >= X)) { cu++; tags.push('cu'); }
-
     if (isCTQ) {
+      // CTQ: không tính bất kỳ số liệu nào, chỉ ghi tag để nhận biết
       ctq++; tags.push('ctq');
-    } else if (isTdcV) {
-      tdc++; tags.push('tdc');
     } else {
-      if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
-      if (isKhPhuc) tags.push('khphuc');
+      // Tất cả vụ còn lại (kể cả TĐC): tính thụ lý bình thường
+      if (inR(B, X, Y))              { moi++; tags.push('moi'); }
+      if (B < X && (!F || F >= X))   { cu++;  tags.push('cu');  }
+
+      if (isTdcV) {
+        // TĐC: đếm riêng tdc, không đếm gq, vẫn tính vào tồn
+        tdc++; tags.push('tdc');
+      } else {
+        if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
+        if (isKhPhuc) tags.push('khphuc');
+      }
     }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'DS',row:i+1,ma:maVu,B,F,gStr,loai:I,khangCao,tp,tags,skipReason:'',colV});
 
-    // Thu thập tpData — Thẩm phán cột K (idx10)
-    if (B && !isCTQ) {
+    if (!isCTQ) {
       tpData.push({tp, src:'DS', loaiAn: classifyLoaiAn(I), loaiGQ: F && inR(F,X,Y) && !isTdcV ? classifyGQ(gStr) : null, B, F, tags: tags.slice()});
     }
-
-    // Thu thập bảng thống kê cột G (vụ có ngày GQ trong kỳ, không tính TĐC/CTQ)
     if (F && inR(F, X, Y) && !isTdcV && !isCTQ) {
       gLoaiData.push({loaiAn: classifyLoaiAn(I), loaiGQ: classifyGQ(gStr), ma:maVu, row:i+1, B, F, gStr, loai:I});
     }
   }
-  return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq-tdc-ctq };
+  // Tồn = TL cũ + TL mới − Giải quyết (TĐC vẫn nằm trong tồn, CTQ không tính)
+  return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq };
 }
 
-// DATA_HS (không tiêu đề, lọc A→Y):
+// DATA_HS (dòng 0 là tiêu đề, bắt đầu i=1):
 //   B=idx1(ngày TL), H=idx7(số GQ), I=idx8(ngày GQ), N=idx13(Thẩm phán)
 //   Q=idx16(kháng cáo), R=idx17(kháng nghị), X=idx23(Tạm đình chỉ)
 function procHS(rows, X, Y) {
   let cu=0, moi=0, gq=0, tdc=0, ctq=0;
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const maVu     = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
-    const B        = mn(parseGvizDate(c[1]));    // cột B - ngày thụ lý
-    const F        = mn(parseGvizDate(c[8]));    // cột I - ngày giải quyết
-    const soGQ     = cellStr(c[7]);              // cột H - số giải quyết
-    const tp       = cellStr(c[13]) || '(Chưa phân công)'; // cột N - Thẩm phán
-    const khangCao = cellStr(c[16]);             // cột Q - kháng cáo
-    const khangNghi= cellStr(c[17]);             // cột R - kháng nghị
-    const colX     = cellStr(c[23]);             // cột X - Tạm đình chỉ
-    const khangStr = [khangCao ? 'KC: '+khangCao : '', khangNghi ? 'KN: '+khangNghi : ''].filter(Boolean).join(' | ');
-
-    const isTdcHS  = isTDC(colX) && !isKhoiPhuc(colX);
-    const isCTQ_HS = /chuyển thẩm quyền/i.test(colX);
+    const maVu      = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
+    const B         = mn(parseGvizDate(c[1]));
+    const F         = mn(parseGvizDate(c[8]));
+    const soGQ      = cellStr(c[7]);
+    const tp        = cellStr(c[13]) || '(Chưa phân công)';
+    const khangCao  = cellStr(c[16]);
+    const khangNghi = cellStr(c[17]);
+    const colX      = cellStr(c[23]);
+    const khangStr  = [khangCao ? 'KC: '+khangCao : '', khangNghi ? 'KN: '+khangNghi : ''].filter(Boolean).join(' | ');
+    const isTdcHS   = isTDC(colX) && !isKhoiPhuc(colX);
+    const isCTQ_HS  = /chuyển thẩm quyền/i.test(colX);
 
     if (!B) {
       logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr:colX,loai:'',tags:['skip'],skipReason:'Không có ngày B',tp,khangCao:khangStr,colV:colX});
@@ -736,50 +734,48 @@ function procHS(rows, X, Y) {
     }
     const tags = [];
 
-    // Thụ lý mới: B trong kỳ
-    if (inR(B, X, Y)) { moi++; tags.push('moi'); }
-    // Thụ lý cũ còn lại: B trước kỳ, chưa giải quyết trước kỳ
-    if (B < X && (!F || F >= X)) { cu++; tags.push('cu'); }
-
     if (isCTQ_HS) {
+      // CTQ: không tính bất kỳ số liệu nào
       ctq++; tags.push('ctq');
-    } else if (isTdcHS) {
-      tdc++; tags.push('tdc');
     } else {
-      if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
+      if (inR(B, X, Y))            { moi++; tags.push('moi'); }
+      if (B < X && (!F || F >= X)) { cu++;  tags.push('cu');  }
+      if (isTdcHS) {
+        tdc++; tags.push('tdc');
+      } else {
+        if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
+      }
     }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr:soGQ,loai:'Hình sự',soGQ,tp,khangCao:khangStr,colV:colX,tags,skipReason:''});
-    if (B && !isCTQ_HS) {
+    if (!isCTQ_HS) {
       tpData.push({tp, src:'HS', loaiAn:'hs', loaiGQ: F && inR(F,X,Y) && !isTdcHS ? 'xx' : null, B, F, tags: tags.slice()});
     }
   }
-  return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq-tdc-ctq };
+  return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq };
 }
 
-// DATA_XLHC (không tiêu đề):
+// DATA_XLHC (dòng 0 là tiêu đề, bắt đầu i=1):
 //   B=idx1(ngày TL), E=idx4(Thẩm phán), G=idx6(ngày giải quyết)
 function procXLHC(rows, X, Y) {
   let cu=0, moi=0, gq=0;
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
     const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
-    const B    = mn(parseGvizDate(c[1]));   // cột B - ngày thụ lý
-    const G    = mn(parseGvizDate(c[6]));   // cột G - ngày giải quyết
-    const tp   = cellStr(c[4]) || '(Chưa phân công)'; // cột E - Thẩm phán
+    const B    = mn(parseGvizDate(c[1]));
+    const G    = mn(parseGvizDate(c[6]));
+    const tp   = cellStr(c[4]) || '(Chưa phân công)';
     if (!B) {
       logEntries.push({src:'XLHC',row:i+1,ma:maVu,B:null,F:null,gStr:'',loai:'',tags:['skip'],skipReason:'Không có ngày B'});
       continue;
     }
     const tags = [];
-    if (inR(B, X, Y))           { moi++; tags.push('moi'); }
-    if (B < X && (!G || G >= X)){ cu++;  tags.push('cu');  }
-    if (G && inR(G, X, Y))      { gq++;  tags.push('gq');  }
+    if (inR(B, X, Y))            { moi++; tags.push('moi'); }
+    if (B < X && (!G || G >= X)) { cu++;  tags.push('cu');  }
+    if (G && inR(G, X, Y))       { gq++;  tags.push('gq');  }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'XLHC',row:i+1,ma:maVu,B,F:G,gStr:'',loai:'',tp,tags,skipReason:''});
-    if (B) {
-      tpData.push({tp, src:'XLHC', loaiAn:'xlhc', loaiGQ: G && inR(G,X,Y) ? 'xx' : null, B, F:G, tags: tags.slice()});
-    }
+    tpData.push({tp, src:'XLHC', loaiAn:'xlhc', loaiGQ: G && inR(G,X,Y) ? 'xx' : null, B, F:G, tags: tags.slice()});
   }
   return { cu, moi, gq, tdc: 0, ctq: 0, ton: cu+moi-gq };
 }
