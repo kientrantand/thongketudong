@@ -779,65 +779,58 @@ function procDS(rows, X, Y, grp) {
   return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq };
 }
 
-// DATA_HS (dòng 0 là tiêu đề, bắt đầu i=1):
-//   B=idx1(ngày TL), H=idx7(số GQ), I=idx8(ngày GQ), N=idx13(Thẩm phán)
-//   Q=idx16(kháng cáo), R=idx17(kháng nghị), X=idx23(Tạm đình chỉ/CTQ), Y=idx24(số bị cáo)
+// DATA_HS — mỗi dòng = 1 vụ án. Dòng 1 tiêu đề → i=1.
+//   A=0(STL), B=1(ngày TL), H=7(số GQ), I=8(ngày GQ), N=13(TP)
+//   Q=16(KC), R=17(KN), X=23(TĐC/CTQ), Y=24(số bị cáo — tính sẵn)
 function procHS(rows, X, Y) {
   let cu=0, moi=0, gq=0, tdc=0, ctq=0;
-  let biCaoCu=0, biCaoMoi=0;  // bị cáo TL cũ và TL mới riêng biệt
+  let bcCu=0, bcMoi=0, bcGq=0, bcTdc=0;
 
-  for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
+  for (let i = 1; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const maVu      = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
-    const B         = mn(parseGvizDate(c[1]));
-    const F         = mn(parseGvizDate(c[8]));
-    const soGQ      = cellStr(c[7]);
-    const tp        = cellStr(c[13]) || '(Chưa phân công)';
-    const khangCao  = cellStr(c[16]);
-    const khangNghi = cellStr(c[17]);
-    const colX      = cellStr(c[23]);
-    const soBC      = parseInt(cellStr(c[24])) || 0;  // cột Y - số bị cáo
-    const khangStr  = [khangCao ? 'KC: '+khangCao : '', khangNghi ? 'KN: '+khangNghi : ''].filter(Boolean).join(' | ');
-    // Dùng regex rộng hơn để bắt mọi biến thể "Tạm đình chỉ", "TĐC", "tạm đình chỉ..."
+    const maVu     = cellStr(c[0]) || ('Dòng '+(i+1));
+    const B        = mn(parseGvizDate(c[1]));
+    const F        = mn(parseGvizDate(c[8]));
+    const soGQ     = cellStr(c[7]);
+    const tp       = cellStr(c[13]) || '(Chưa phân công)';
+    const khangCao = cellStr(c[16]);
+    const khangNghi= cellStr(c[17]);
+    const colX     = cellStr(c[23]);
+    const soBC     = parseInt(cellStr(c[24])) || 0;
+    const khangStr = [khangCao?'KC: '+khangCao:'', khangNghi?'KN: '+khangNghi:''].filter(Boolean).join(' | ');
     const isTdcHS  = /tạm đình chỉ|tđc/i.test(colX) && !isKhoiPhuc(colX);
     const isCTQ_HS = /chuyển thẩm quyền/i.test(colX);
 
     if (!B) {
-      logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr:colX,loai:'',tags:['skip'],skipReason:'Không có ngày B',tp,khangCao:khangStr,colV:colX,soBC:''});
+      logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr:colX,loai:'',
+        tags:['skip'],skipReason:'Không có ngày B',tp,khangCao:khangStr,colV:colX,soBC:''});
       continue;
     }
-    const tags = [];
 
+    const tags = [];
     if (isCTQ_HS) {
-      // CTQ: không tính bất kỳ số liệu nào
       ctq++; tags.push('ctq');
     } else {
-      // Thụ lý mới
-      if (inR(B, X, Y)) {
-        moi++;
-        biCaoMoi += soBC;
-        tags.push('moi');
-      }
-      // Thụ lý cũ còn lại
-      if (B < X && (!F || F >= X)) {
-        cu++;
-        biCaoCu += soBC;
-        tags.push('cu');
-      }
-      // TĐC hoặc giải quyết
+      if (inR(B, X, Y))            { moi++; bcMoi += soBC; tags.push('moi'); }
+      if (B < X && (!F || F >= X)) { cu++;  bcCu  += soBC; tags.push('cu');  }
       if (isTdcHS) {
-        tdc++; tags.push('tdc');
+        tdc++; bcTdc += soBC; tags.push('tdc');
       } else {
-        if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
+        if (F && inR(F, X, Y))     { gq++;  bcGq  += soBC; tags.push('gq');  }
       }
     }
     if (tags.length === 0) tags.push('none');
-    logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr:soGQ,loai:'Hình sự',soGQ,tp,khangCao:khangStr,colV:colX,soBC,tags,skipReason:''});
+    logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr:soGQ,loai:'Hình sự',
+      soGQ,tp,khangCao:khangStr,colV:colX,soBC,tags,skipReason:''});
     if (!isCTQ_HS) {
-      tpData.push({tp, src:'HS', loaiAn:'hs', loaiGQ: F && inR(F,X,Y) && !isTdcHS ? 'xx' : null, B, F, tags: tags.slice()});
+      tpData.push({tp, src:'HS', loaiAn:'hs',
+        loaiGQ: F&&inR(F,X,Y)&&!isTdcHS ? 'xx' : null, B, F, tags: tags.slice()});
     }
   }
-  return { cu, moi, gq, tdc, ctq, biCaoCu, biCaoMoi, ton: cu+moi-gq };
+
+  const ton   = cu + moi - gq;
+  const bcTon = bcCu + bcMoi - bcGq;
+  return { cu, moi, gq, tdc, ctq, ton, bcCu, bcMoi, bcGq, bcTdc, bcTon };
 }
 
 // DATA_XLHC (dòng 0 là tiêu đề, bắt đầu i=1):
@@ -899,63 +892,68 @@ async function run() {
     }
   } catch(e) { st('error', e.message); btn.disabled=false; return; }
 
-  let T = {cu:0, moi:0, gq:0, tdc:0, ctq:0, ton:0, biCaoCu:0, biCaoMoi:0};
+  let T = {cu:0, moi:0, gq:0, tdc:0, ctq:0, ton:0,
+           bcCu:0, bcMoi:0, bcGq:0, bcTdc:0, bcTon:0};
   Object.values(res).forEach(r => {
     T.cu+=r.cu; T.moi+=r.moi; T.gq+=r.gq;
     T.tdc+=(r.tdc||0); T.ctq+=(r.ctq||0); T.ton+=r.ton;
-    T.biCaoCu+=(r.biCaoCu||0); T.biCaoMoi+=(r.biCaoMoi||0);
+    T.bcCu+=(r.bcCu||0); T.bcMoi+=(r.bcMoi||0);
+    T.bcGq+=(r.bcGq||0); T.bcTdc+=(r.bcTdc||0); T.bcTon+=(r.bcTon||0);
   });
 
   const hasHS = !!res.HS;
 
-  // Hàm tạo box hiển thị "N vụ / M bị cáo" cho HS
-  function boxHS(cls, label, vus, bc) {
-    return '<div class="sbox '+cls+'">'
-      +'<div class="slabel">'+label+'</div>'
-      +'<div class="sval">'+vus.toLocaleString('vi-VN')+'</div>'
-      +(bc > 0 ? '<div style="font-size:.72rem;color:var(--muted);margin-top:4px">'+bc.toLocaleString('vi-VN')+' bị cáo</div>' : '')
-      +'</div>';
+  // Format "N vụ / M bị cáo" — chỉ hiện bị cáo khi thống kê có HS
+  function fmtVuBC(vus, bc) {
+    if (!hasHS || bc === 0) return vus.toLocaleString('vi-VN');
+    return vus.toLocaleString('vi-VN') + ' <span style="font-size:.72rem;color:#8e44ad;font-weight:600">/ ' + bc.toLocaleString('vi-VN') + ' BC</span>';
   }
 
   document.getElementById('tStats').innerHTML =
-    box('cu','Thụ lý cũ còn lại',T.cu) +
-    box('moi','Thụ lý mới',T.moi) +
-    box('gq','Đã giải quyết',T.gq) +
-    box('tdc','Tạm đình chỉ',T.tdc) +
+    box('cu',  'Thụ lý cũ còn lại', T.cu)  +
+    box('moi', 'Thụ lý mới',         T.moi) +
+    box('gq',  'Đã giải quyết',      T.gq)  +
+    box('tdc', 'Tạm đình chỉ',       T.tdc) +
     (T.ctq ? box('ctq','Chuyển thẩm quyền',T.ctq) : '') +
-    box('ton','Còn tồn',T.ton);
+    box('ton', 'Còn tồn',            T.ton);
+
+  // Nếu có HS, thêm hàng bị cáo chi tiết bên dưới tStats
+  if (hasHS) {
+    const hs = res.HS;
+    document.getElementById('tStats').innerHTML +=
+      '<div style="grid-column:1/-1;background:#f5eeff;border-radius:10px;padding:12px 16px;border:1.5px solid #d7b8f3;margin-top:4px">'
+      +'<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#8e44ad;margin-bottom:8px">⚖️ Hình sự — Chi tiết bị cáo</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:18px;font-size:.82rem">'
+      +'<span>📥 TL cũ: <b>'+hs.cu+' vụ / '+hs.bcCu+' BC</b></span>'
+      +'<span>📋 TL mới: <b>'+hs.moi+' vụ / '+hs.bcMoi+' BC</b></span>'
+      +'<span>✅ Giải quyết: <b>'+hs.gq+' vụ / '+hs.bcGq+' BC</b></span>'
+      +'<span style="color:var(--warning)">🟠 Tạm đình chỉ: <b>'+hs.tdc+' vụ / '+hs.bcTdc+' BC</b></span>'
+      +'<span style="color:var(--danger)">📌 Còn tồn: <b>'+hs.ton+' vụ / '+hs.bcTon+' BC</b></span>'
+      +'</div></div>';
+  }
 
   const NM={DS:'Dân sự mở rộng',HS:'Hình sự',XLHC:'Xử lý hành chính'};
   const TC={DS:'tds',HS:'ths',XLHC:'thc'};
   const showBC = hasHS;
 
-  // Format "N vụ / M BC" cho ô bị cáo
-  function fmtBC(vus, bc) {
-    return vus + ' vụ' + (bc > 0 ? ' / ' + bc + ' BC' : '');
-  }
-
   let tb='';
   Object.entries(res).forEach(([k,v]) => {
-    const bcCuStr  = k==='HS' ? fmtBC(v.cu,  v.biCaoCu||0)  : v.cu;
-    const bcMoiStr = k==='HS' ? fmtBC(v.moi, v.biCaoMoi||0) : v.moi;
+    const isHS = k==='HS';
     tb += '<tr><td><span class="tag '+TC[k]+'">'+NM[k]+'</span></td>'
-      +'<td class="r">'+bcCuStr+'</td>'
-      +'<td class="r">'+bcMoiStr+'</td>'
-      +'<td class="r">'+v.gq+'</td>'
-      +'<td class="r" style="color:var(--warning)">'+(v.tdc||0)+'</td>'
+      +'<td class="r">'+(isHS ? fmtVuBC(v.cu,  v.bcCu||0)  : v.cu)+'</td>'
+      +'<td class="r">'+(isHS ? fmtVuBC(v.moi, v.bcMoi||0) : v.moi)+'</td>'
+      +'<td class="r">'+(isHS ? fmtVuBC(v.gq,  v.bcGq||0)  : v.gq)+'</td>'
+      +'<td class="r" style="color:var(--warning)">'+(isHS ? fmtVuBC(v.tdc||0, v.bcTdc||0) : (v.tdc||0))+'</td>'
       +'<td class="r" style="color:var(--blue)">'+(v.ctq||0)+'</td>'
-      +'<td class="r" style="color:var(--danger)">'+v.ton+'</td></tr>';
+      +'<td class="r" style="color:var(--danger)">'+(isHS ? fmtVuBC(v.ton, v.bcTon||0) : v.ton)+'</td></tr>';
   });
-  // Dòng tổng — hiển thị bị cáo riêng nếu có HS
-  const totCuStr  = hasHS ? fmtBC(T.cu,  T.biCaoCu)  : T.cu;
-  const totMoiStr = hasHS ? fmtBC(T.moi, T.biCaoMoi) : T.moi;
   tb += '<tr class="trow"><td>Tổng cộng</td>'
-    +'<td class="r">'+totCuStr+'</td>'
-    +'<td class="r">'+totMoiStr+'</td>'
-    +'<td class="r">'+T.gq+'</td>'
-    +'<td class="r" style="color:var(--warning)">'+T.tdc+'</td>'
+    +'<td class="r">'+fmtVuBC(T.cu,  T.bcCu)+'</td>'
+    +'<td class="r">'+fmtVuBC(T.moi, T.bcMoi)+'</td>'
+    +'<td class="r">'+fmtVuBC(T.gq,  T.bcGq)+'</td>'
+    +'<td class="r" style="color:var(--warning)">'+fmtVuBC(T.tdc, T.bcTdc)+'</td>'
     +'<td class="r" style="color:var(--blue)">'+T.ctq+'</td>'
-    +'<td class="r" style="color:var(--danger)">'+T.ton+'</td></tr>';
+    +'<td class="r" style="color:var(--danger)">'+fmtVuBC(T.ton, T.bcTon)+'</td></tr>';
     +'<td class="r" style="color:var(--danger)">'+T.ton+'</td></tr>';
 
   const gl = document.querySelector('#grpChips .chip.on')?.textContent || '';
@@ -966,12 +964,12 @@ async function run() {
     +' &nbsp;|&nbsp; '+totalRows+' dòng xử lý</p>'
     +'<div style="overflow-x:auto"><table class="dt"><thead><tr>'
     +'<th>Nguồn</th>'
-    +'<th style="text-align:right">TL cũ còn lại'+(showBC?' <span style="font-weight:400;font-size:.7rem;color:rgba(255,255,255,.6)">(vụ/BC)</span>':'')+'</th>'
-    +'<th style="text-align:right">TL mới'+(showBC?' <span style="font-weight:400;font-size:.7rem;color:rgba(255,255,255,.6)">(vụ/BC)</span>':'')+'</th>'
-    +'<th style="text-align:right">Giải quyết</th>'
-    +'<th style="text-align:right">Tạm đình chỉ</th>'
+    +'<th style="text-align:right">TL cũ còn lại'+(showBC?' <span style="opacity:.65;font-size:.68rem">(vụ/BC)</span>':'')+'</th>'
+    +'<th style="text-align:right">TL mới'+(showBC?' <span style="opacity:.65;font-size:.68rem">(vụ/BC)</span>':'')+'</th>'
+    +'<th style="text-align:right">Giải quyết'+(showBC?' <span style="opacity:.65;font-size:.68rem">(vụ/BC)</span>':'')+'</th>'
+    +'<th style="text-align:right">Tạm đình chỉ'+(showBC?' <span style="opacity:.65;font-size:.68rem">(vụ/BC)</span>':'')+'</th>'
     +'<th style="text-align:right">Chuyển TQ</th>'
-    +'<th style="text-align:right">Còn tồn</th>'
+    +'<th style="text-align:right">Còn tồn'+(showBC?' <span style="opacity:.65;font-size:.68rem">(vụ/BC)</span>':'')+'</th>'
     +'</tr></thead><tbody>'+tb+'</tbody></table></div>';
 
   document.getElementById('results').style.display = 'block';
