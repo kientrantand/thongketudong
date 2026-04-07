@@ -1417,6 +1417,8 @@ function toggleChartCard() {
   chartCardVisible = !chartCardVisible;
   document.getElementById('chartCardBody').style.display = chartCardVisible ? '' : 'none';
   document.getElementById('chartToggleBtn').textContent = chartCardVisible ? '▼ Ẩn biểu đồ' : '▶ Xem biểu đồ';
+}
+
 // ── DEBUG CỘT GVIZ ────────────────────────────────────────────────────
 function renderColDebug(colDebug) {
   const COL_LETTER = i => {
@@ -1455,5 +1457,5 @@ function renderColDebug(colDebug) {
   document.getElementById('colDebugPanel').style.display = 'block';
 }
 </script>
--e </body>
+</body>
 </html>
