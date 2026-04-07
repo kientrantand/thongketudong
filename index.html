@@ -64,7 +64,7 @@ header p{font-size:.78rem;color:rgba(255,255,255,.58);margin-top:3px}
 .sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px}
 .sbox{background:var(--card);border-radius:12px;padding:18px 16px;border:1.5px solid var(--border);text-align:center;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
 .sbox::before{content:'';position:absolute;top:0;left:0;right:0;height:4px}
-.sbox.cu::before{background:var(--accent)}.sbox.moi::before{background:#3498db}.sbox.gq::before{background:var(--success)}.sbox.ton::before{background:var(--danger)}.sbox.tdc::before{background:var(--warning)}
+.sbox.cu::before{background:var(--accent)}.sbox.moi::before{background:#3498db}.sbox.gq::before{background:var(--success)}.sbox.ton::before{background:var(--danger)}.sbox.tdc::before{background:var(--warning)}.sbox.ctq::before{background:var(--blue)}
 .sbox:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(13,27,42,.09)}
 .slabel{font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px}
 .sval{font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:var(--navy)}
@@ -648,7 +648,7 @@ const GQ_LABEL = {
 //   B=idx1(ngày TL), E=idx4(số GQ), F=idx5(ngày GQ), G=idx6(kết quả GQ),
 //   H=idx7(kháng cáo/KN), I=idx8(loại án), K=idx10(Thẩm phán), V=idx21(TĐC/CTQ)
 function procDS(rows, X, Y, grp) {
-  let cu=0, moi=0, gq=0, tdc=0;
+  let cu=0, moi=0, gq=0, tdc=0, ctq=0;
   for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
     const I        = cellStr(c[8]);   // Loại án (cột I)
@@ -666,7 +666,6 @@ function procDS(rows, X, Y, grp) {
     const gStr      = cellStr(c[6]);              // cột G - kết quả GQ
     const khangCao  = cellStr(c[7]);              // cột H - kháng cáo/kháng nghị
     const tp        = cellStr(c[10]) || '(Chưa phân công)'; // cột K - Thẩm phán
-    // Cột V (index 21): nguồn chính xác định TĐC / phục hồi / Chuyển thẩm quyền
     const colV = cellStr(c[21]);
     const isCTQ    = /chuyển thẩm quyền/i.test(colV);
     const isTdcV   = /tạm đình chỉ/i.test(colV) && !isKhoiPhuc(colV);
@@ -674,20 +673,25 @@ function procDS(rows, X, Y, grp) {
 
     if (!B) {
       const rawB = c[1] ? JSON.stringify(c[1]).slice(0,60) : '(rỗng)';
-      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB, tp,khangCao:'',colV});
+      logEntries.push({src:'DS',row:i+1,ma:maVu,B:null,F,gStr,loai:I,tags:['skip'],skipReason:'Không có ngày B — raw: '+rawB,tp,khangCao:'',colV});
       continue;
     }
 
     const tags = [];
 
+    // ── Thụ lý mới: B nằm trong kỳ [X,Y]
+    if (inR(B, X, Y)) { moi++; tags.push('moi'); }
+
+    // ── Thụ lý cũ còn lại: B trước kỳ VÀ chưa giải quyết trước kỳ
+    //    (tức là F rỗng hoặc F >= X — vụ được giải quyết TRONG hoặc SAU kỳ)
+    if (B < X && (!F || F >= X)) { cu++; tags.push('cu'); }
+
     if (isCTQ) {
-      tags.push('ctq');
+      ctq++; tags.push('ctq');
     } else if (isTdcV) {
       tdc++; tags.push('tdc');
     } else {
-      if (inR(B, X, Y))                  { moi++; tags.push('moi'); }
-      if (B < X && (!F || inR(F, X, Y))) { cu++;  tags.push('cu');  }
-      if (F && inR(F, X, Y))             { gq++;  tags.push('gq');  }
+      if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
       if (isKhPhuc) tags.push('khphuc');
     }
     if (tags.length === 0) tags.push('none');
@@ -703,14 +707,14 @@ function procDS(rows, X, Y, grp) {
       gLoaiData.push({loaiAn: classifyLoaiAn(I), loaiGQ: classifyGQ(gStr), ma:maVu, row:i+1, B, F, gStr, loai:I});
     }
   }
-  return { cu, moi, gq, tdc, ton: cu+moi-gq };
+  return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq-tdc-ctq };
 }
 
 // DATA_HS (không tiêu đề, lọc A→Y):
 //   B=idx1(ngày TL), H=idx7(số GQ), I=idx8(ngày GQ), N=idx13(Thẩm phán)
 //   Q=idx16(kháng cáo), R=idx17(kháng nghị), X=idx23(Tạm đình chỉ)
 function procHS(rows, X, Y) {
-  let cu=0, moi=0, gq=0, tdc=0;
+  let cu=0, moi=0, gq=0, tdc=0, ctq=0;
   for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
     const maVu     = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
@@ -721,36 +725,36 @@ function procHS(rows, X, Y) {
     const khangCao = cellStr(c[16]);             // cột Q - kháng cáo
     const khangNghi= cellStr(c[17]);             // cột R - kháng nghị
     const colX     = cellStr(c[23]);             // cột X - Tạm đình chỉ
-    // Ghép kháng cáo + kháng nghị thành 1 chuỗi hiển thị
     const khangStr = [khangCao ? 'KC: '+khangCao : '', khangNghi ? 'KN: '+khangNghi : ''].filter(Boolean).join(' | ');
 
-    // TĐC dựa vào cột X, skip dựa vào cột X
     const isTdcHS  = isTDC(colX) && !isKhoiPhuc(colX);
     const isCTQ_HS = /chuyển thẩm quyền/i.test(colX);
-    const sk       = isTdcHS || isCTQ_HS;
 
     if (!B) {
       logEntries.push({src:'HS',row:i+1,ma:maVu,B:null,F,gStr:colX,loai:'',tags:['skip'],skipReason:'Không có ngày B',tp,khangCao:khangStr,colV:colX});
       continue;
     }
     const tags = [];
+
+    // Thụ lý mới: B trong kỳ
+    if (inR(B, X, Y)) { moi++; tags.push('moi'); }
+    // Thụ lý cũ còn lại: B trước kỳ, chưa giải quyết trước kỳ
+    if (B < X && (!F || F >= X)) { cu++; tags.push('cu'); }
+
     if (isCTQ_HS) {
-      tags.push('ctq');
+      ctq++; tags.push('ctq');
     } else if (isTdcHS) {
       tdc++; tags.push('tdc');
     } else {
-      if (inR(B, X, Y))                         { moi++; tags.push('moi'); }
-      if (B < X && (!F || inR(F, X, Y)))        { cu++;  tags.push('cu');  }
-      if (F && inR(F, X, Y))                    { gq++;  tags.push('gq');  }
+      if (F && inR(F, X, Y)) { gq++; tags.push('gq'); }
     }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'HS',row:i+1,ma:maVu,B,F,gStr:soGQ,loai:'Hình sự',soGQ,tp,khangCao:khangStr,colV:colX,tags,skipReason:''});
-    // Thu thập tpData HS — Thẩm phán cột N (idx13)
     if (B && !isCTQ_HS) {
       tpData.push({tp, src:'HS', loaiAn:'hs', loaiGQ: F && inR(F,X,Y) && !isTdcHS ? 'xx' : null, B, F, tags: tags.slice()});
     }
   }
-  return { cu, moi, gq, tdc, ton: cu+moi-gq };
+  return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq-tdc-ctq };
 }
 
 // DATA_XLHC (không tiêu đề):
@@ -768,17 +772,16 @@ function procXLHC(rows, X, Y) {
       continue;
     }
     const tags = [];
-    if (inR(B, X, Y))                  { moi++; tags.push('moi'); }
-    if (B < X && (!G || inR(G, X, Y))) { cu++;  tags.push('cu');  }
-    if (G && inR(G, X, Y))             { gq++;  tags.push('gq');  }
+    if (inR(B, X, Y))           { moi++; tags.push('moi'); }
+    if (B < X && (!G || G >= X)){ cu++;  tags.push('cu');  }
+    if (G && inR(G, X, Y))      { gq++;  tags.push('gq');  }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'XLHC',row:i+1,ma:maVu,B,F:G,gStr:'',loai:'',tp,tags,skipReason:''});
-    // Thu thập tpData XLHC — Thẩm phán cột E (idx4)
     if (B) {
       tpData.push({tp, src:'XLHC', loaiAn:'xlhc', loaiGQ: G && inR(G,X,Y) ? 'xx' : null, B, F:G, tags: tags.slice()});
     }
   }
-  return { cu, moi, gq, tdc: 0, ton: cu+moi-gq };
+  return { cu, moi, gq, tdc: 0, ctq: 0, ton: cu+moi-gq };
 }
 
 // ── main ──────────────────────────────────────────────────────────────
@@ -813,14 +816,15 @@ async function run() {
     }
   } catch(e) { st('error', e.message); btn.disabled=false; return; }
 
-  let T = {cu:0, moi:0, gq:0, tdc:0, ton:0};
-  Object.values(res).forEach(r => { T.cu+=r.cu; T.moi+=r.moi; T.gq+=r.gq; T.tdc+=r.tdc; T.ton+=r.ton; });
+  let T = {cu:0, moi:0, gq:0, tdc:0, ctq:0, ton:0};
+  Object.values(res).forEach(r => { T.cu+=r.cu; T.moi+=r.moi; T.gq+=r.gq; T.tdc+=(r.tdc||0); T.ctq+=(r.ctq||0); T.ton+=r.ton; });
 
   document.getElementById('tStats').innerHTML =
     box('cu','Thụ lý cũ còn lại',T.cu) +
     box('moi','Thụ lý mới',T.moi) +
     box('gq','Đã giải quyết',T.gq) +
     box('tdc','Tạm đình chỉ',T.tdc) +
+    (T.ctq ? box('ctq','Chuyển thẩm quyền',T.ctq) : '') +
     box('ton','Còn tồn',T.ton);
 
   const NM={DS:'Dân sự mở rộng',HS:'Hình sự',XLHC:'Xử lý hành chính'};
@@ -829,12 +833,14 @@ async function run() {
   Object.entries(res).forEach(([k,v]) => {
     tb += '<tr><td><span class="tag '+TC[k]+'">'+NM[k]+'</span></td>'
       +'<td class="r">'+v.cu+'</td><td class="r">'+v.moi+'</td>'
-      +'<td class="r">'+v.gq+'</td><td class="r" style="color:var(--warning)">'+v.tdc+'</td>'
+      +'<td class="r">'+v.gq+'</td><td class="r" style="color:var(--warning)">'+(v.tdc||0)+'</td>'
+      +'<td class="r" style="color:var(--blue)">'+(v.ctq||0)+'</td>'
       +'<td class="r" style="color:var(--danger)">'+v.ton+'</td></tr>';
   });
   tb += '<tr class="trow"><td>Tổng cộng</td>'
     +'<td class="r">'+T.cu+'</td><td class="r">'+T.moi+'</td>'
     +'<td class="r">'+T.gq+'</td><td class="r" style="color:var(--warning)">'+T.tdc+'</td>'
+    +'<td class="r" style="color:var(--blue)">'+T.ctq+'</td>'
     +'<td class="r" style="color:var(--danger)">'+T.ton+'</td></tr>';
 
   const gl = document.querySelector('#grpChips .chip.on')?.textContent || '';
@@ -845,7 +851,7 @@ async function run() {
     +' &nbsp;|&nbsp; '+totalRows+' dòng xử lý</p>'
     +'<div style="overflow-x:auto"><table class="dt"><thead><tr>'
     +'<th>Nguồn</th><th style="text-align:right">TL cũ còn lại</th><th style="text-align:right">TL mới</th>'
-    +'<th style="text-align:right">Giải quyết</th><th style="text-align:right">Tạm đình chỉ</th><th style="text-align:right">Còn tồn</th>'
+    +'<th style="text-align:right">Giải quyết</th><th style="text-align:right">Tạm đình chỉ</th><th style="text-align:right">Chuyển TQ</th><th style="text-align:right">Còn tồn</th>'
     +'</tr></thead><tbody>'+tb+'</tbody></table></div>';
 
   document.getElementById('results').style.display = 'block';
