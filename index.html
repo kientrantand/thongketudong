@@ -779,14 +779,14 @@ function procDS(rows, X, Y, grp) {
   return { cu, moi, gq, tdc, ctq, ton: cu+moi-gq };
 }
 
-// DATA_HS — mỗi dòng = 1 vụ án. Dòng 1 tiêu đề → i=1.
+// DATA_HS — IMPORTRANGE trực tiếp, gviz không có tiêu đề → i=0
 //   A=0(STL), B=1(ngày TL), H=7(số GQ), I=8(ngày GQ), N=13(TP)
 //   Q=16(KC), R=17(KN), X=23(TĐC/CTQ), Y=24(số bị cáo — tính sẵn)
 function procHS(rows, X, Y) {
   let cu=0, moi=0, gq=0, tdc=0, ctq=0;
   let bcCu=0, bcMoi=0, bcGq=0, bcTdc=0;
 
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
     const maVu     = cellStr(c[0]) || ('Dòng '+(i+1));
     const B        = mn(parseGvizDate(c[1]));
@@ -833,13 +833,14 @@ function procHS(rows, X, Y) {
   return { cu, moi, gq, tdc, ctq, ton, bcCu, bcMoi, bcGq, bcTdc, bcTon };
 }
 
-// DATA_XLHC (dòng 0 là tiêu đề, bắt đầu i=1):
+// DATA_XLHC — IMPORTRANGE trực tiếp, gviz không có tiêu đề → i=0
+// Mỗi dòng = 1 vụ án.
 //   B=idx1(ngày TL), E=idx4(Thẩm phán), G=idx6(ngày giải quyết)
 function procXLHC(rows, X, Y) {
   let cu=0, moi=0, gq=0;
-  for (let i = 1; i < rows.length; i++) {   // i=1: bỏ dòng tiêu đề
+  for (let i = 0; i < rows.length; i++) {
     const c = (rows[i] && rows[i].c) ? rows[i].c : [];
-    const maVu = cellStr(c[0]) || cellStr(c[2]) || ('Dòng '+(i+1));
+    const maVu = cellStr(c[0]) || ('Dòng '+(i+1));
     const B    = mn(parseGvizDate(c[1]));
     const G    = mn(parseGvizDate(c[6]));
     const tp   = cellStr(c[4]) || '(Chưa phân công)';
@@ -853,9 +854,9 @@ function procXLHC(rows, X, Y) {
     if (G && inR(G, X, Y))       { gq++;  tags.push('gq');  }
     if (tags.length === 0) tags.push('none');
     logEntries.push({src:'XLHC',row:i+1,ma:maVu,B,F:G,gStr:'',loai:'',tp,tags,skipReason:''});
-    tpData.push({tp, src:'XLHC', loaiAn:'xlhc', loaiGQ: G && inR(G,X,Y) ? 'xx' : null, B, F:G, tags: tags.slice()});
+    tpData.push({tp, src:'XLHC', loaiAn:'xlhc', loaiGQ: G&&inR(G,X,Y)?'xx':null, B, F:G, tags:tags.slice()});
   }
-  return { cu, moi, gq, tdc: 0, ctq: 0, ton: cu+moi-gq };
+  return { cu, moi, gq, tdc:0, ctq:0, ton:cu+moi-gq };
 }
 
 // ── main ──────────────────────────────────────────────────────────────
